@@ -10,6 +10,7 @@ export function createProcessor(): Processor {
   let closed = false;
   return {
     kinds: supportedKinds,
+    isAvailable: () => navigator.onLine,
     async process(job, bytes, mimeType, signal) {
       if (job.kind === 'voice') return transcribe(job, bytes, mimeType, signal);
       try {

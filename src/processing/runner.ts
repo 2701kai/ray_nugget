@@ -4,6 +4,7 @@ import type { Extraction, ProcessingJob } from './jobs';
 
 export interface Processor {
   kinds: Attachment['kind'][];
+  isAvailable?(kind: Attachment['kind']): boolean;
   process(job: ProcessingJob, bytes: Uint8Array, mimeType: string, signal: AbortSignal): Promise<Extraction>;
   close(): Promise<void>;
 }
@@ -15,7 +16,7 @@ export function startProcessing(repo: DraftRepository, processor: Processor, cha
   type Lane = { kind: Attachment['kind']; busy: boolean; heartbeat?: ReturnType<typeof setInterval> };
   const lanes: Lane[] = processor.kinds.map(kind => ({ kind, busy: false }));
   async function tick(lane: Lane) {
-    if (lane.busy || controller.signal.aborted) return;
+    if (lane.busy || controller.signal.aborted || processor.isAvailable?.(lane.kind) === false) return;
     lane.busy = true;
     let job: ProcessingJob | undefined;
     const leaseId = uuid();

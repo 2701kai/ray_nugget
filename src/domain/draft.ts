@@ -38,6 +38,7 @@ export type Draft = {
   contact: Contact;
   request: Request;
   note: string;
+  entries?: Array<{ id: string; text: string; createdAt: string }>;
   attachments: Attachment[];
   provenance: Record<string, Origin>;
   appliedJobs: string[];
@@ -47,6 +48,7 @@ export type Draft = {
 export type Patch = { contact?: Partial<Contact>; request?: Partial<Request>; event?: string; note?: string };
 export type DraftAction =
   | { type: 'edit'; patch: Patch }
+  | { type: 'addNote'; id: string; text: string }
   | { type: 'attach'; attachment: Attachment }
   | { type: 'enrich'; jobId: string; attachmentId: string; fields: Partial<Contact> }
   | { type: 'reviewExtraction'; jobId: string; attachmentId: string; fields: Partial<Contact>; transcript?: string }
@@ -121,6 +123,10 @@ export function reduceDraft(draft: Draft, action: DraftAction, now: string): Dra
       if (action.patch.note.length > 10000) throw new Error('Keep a note under 10,000 characters.');
       next.note = action.patch.note;
     }
+  } else if (action.type === 'addNote') {
+    if (draft.entries?.some(entry => entry.id === action.id)) return draft;
+    if (!action.text.trim() || action.text.length > 10000) throw new Error('Write a note of up to 10,000 characters.');
+    next.entries = [...(draft.entries ?? []), { id: action.id, text: action.text.trim(), createdAt: now }];
   } else if (action.type === 'attach') {
     const attachment = action.attachment;
     if (attachment.bytes <= 0 || attachment.bytes > mediaLimit(attachment.kind)) throw new Error(`Choose a non-empty file smaller than ${mediaLimit(attachment.kind) / 1024 / 1024} MiB.`);

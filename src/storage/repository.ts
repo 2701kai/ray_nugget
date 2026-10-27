@@ -55,7 +55,19 @@ export async function openRepository(name = 'ray-nugget-v1.db'): Promise<DraftRe
   return {
     ...processing,
     async list() { return (await db.getAllAsync<{ json: string }>('SELECT json FROM drafts ORDER BY updatedAt DESC')).map(row => JSON.parse(row.json) as Draft); },
-    async create(draft) { await db.runAsync('INSERT INTO drafts VALUES (?, ?, ?)', draft.id, draft.updatedAt, JSON.stringify(draft)); },
+    async create(draft, activate = false) {
+      await db.withExclusiveTransactionAsync(async tx => {
+        await tx.runAsync('INSERT INTO drafts VALUES (?, ?, ?)', draft.id, draft.updatedAt, JSON.stringify(draft));
+        if (activate) await tx.runAsync('INSERT OR REPLACE INTO settings VALUES (?, ?)', 'active-draft', JSON.stringify({ activeDraftId: draft.id }));
+      });
+    },
+    async activeDraft() { const row = await db.getFirstAsync<{ json: string }>('SELECT json FROM settings WHERE id = ?', 'active-draft'); return row ? JSON.parse(row.json).activeDraftId as string | undefined : undefined; },
+    async activateDraft(id) {
+      await db.withExclusiveTransactionAsync(async tx => {
+        if (id && !(await tx.getFirstAsync('SELECT id FROM drafts WHERE id = ?', id))) throw new Error('This visitor draft no longer exists.');
+        await tx.runAsync('INSERT OR REPLACE INTO settings VALUES (?, ?)', 'active-draft', JSON.stringify({ activeDraftId: id }));
+      });
+    },
     async update(id, action, expectedRevision, media) {
       let result: Draft | undefined;
       await db.withExclusiveTransactionAsync(async tx => {

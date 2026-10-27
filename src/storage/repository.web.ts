@@ -6,7 +6,7 @@ import { newJob, processingRepository, type ProcessingJob, type JobTransaction }
 interface PeteDatabase extends DBSchema {
   drafts: { key: string; value: Draft };
   media: { key: string; value: Uint8Array };
-  settings: { key: string; value: Preferences };
+  settings: { key: string; value: Preferences | { activeDraftId?: string } };
   jobs: { key: string; value: ProcessingJob; indexes: { due: [string, number] } };
 }
 
@@ -49,7 +49,18 @@ export async function openRepository(name = 'ray-nugget-v1'): Promise<DraftRepos
   return {
     ...processing,
     async list() { return (await db.getAll('drafts')).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)); },
-    async create(draft) { await db.add('drafts', draft); },
+    async create(draft, activate = false) {
+      const tx = db.transaction(['drafts', 'settings'], 'readwrite');
+      await tx.objectStore('drafts').add(draft);
+      if (activate) await tx.objectStore('settings').put({ activeDraftId: draft.id }, 'active-draft');
+      await tx.done;
+    },
+    async activeDraft() { const value = await db.get('settings', 'active-draft'); return value && 'activeDraftId' in value ? value.activeDraftId : undefined; },
+    async activateDraft(id) {
+      const tx = db.transaction(['drafts', 'settings'], 'readwrite');
+      if (id && !(await tx.objectStore('drafts').get(id))) { await tx.done; throw new Error('This visitor draft no longer exists.'); }
+      await tx.objectStore('settings').put({ activeDraftId: id }, 'active-draft'); await tx.done;
+    },
     async update(id, action, expectedRevision, media) {
       const tx = db.transaction(['drafts', 'media', 'jobs'], 'readwrite');
       try {
@@ -73,7 +84,7 @@ export async function openRepository(name = 'ray-nugget-v1'): Promise<DraftRepos
       }
     },
     media: (draftId, attachmentId) => db.get('media', `${draftId}:${attachmentId}`),
-    async preferences() { return (await db.get('settings', 'preferences')) ?? structuredClone(defaultPreferences); },
+    async preferences() { return (await db.get('settings', 'preferences')) as Preferences ?? structuredClone(defaultPreferences); },
     async savePreferences(value) { await db.put('settings', value, 'preferences'); },
     async close() { db.close(); },
   };

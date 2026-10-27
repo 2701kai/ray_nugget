@@ -13,6 +13,7 @@ import type { Contact } from './domain/draft';
 export function useWorkspace() {
   const repo = useRef<DraftRepository | null>(null);
   const [drafts, setDrafts] = useState<Draft[]>([]);
+  const [activeDraftId, setActiveDraftId] = useState<string>();
   const [jobs, setJobs] = useState<ProcessingJob[]>([]);
   const runner = useRef<ReturnType<typeof startProcessing> | null>(null);
   const [preferences, setPreferences] = useState(defaultPreferences);
@@ -26,9 +27,9 @@ export function useWorkspace() {
     setLoading(true); setError('');
     openRepository().then(async repository => {
       current = repository;
-      const [records, prefs, tasks] = await Promise.all([repository.list(), repository.preferences(), repository.jobs()]);
+      const [records, prefs, tasks, selected] = await Promise.all([repository.list(), repository.preferences(), repository.jobs(), repository.activeDraft()]);
       if (!alive) return repository.close();
-      repo.current = repository; setDrafts(records); setJobs(tasks); setPreferences(prefs); setLoading(false);
+      repo.current = repository; setDrafts(records); setJobs(tasks); setPreferences(prefs); setActiveDraftId(records.some(d => d.id === selected) ? selected : undefined); setLoading(false);
       currentRunner = startProcessing(repository, createProcessor(), async () => {
         const tasks = await repository.jobs();
         if (alive) setJobs(tasks);
@@ -51,7 +52,7 @@ export function useWorkspace() {
   }), []);
   async function create(entry: CaptureKind) {
     const draft = createDraft(Crypto.randomUUID(), entry, preferences.event, new Date().toISOString());
-    await repository().create(draft); merge(draft); return draft;
+    await repository().create(draft, true); merge(draft); setActiveDraftId(draft.id); return draft;
   }
   async function update(id: string, action: DraftAction, revision?: number) {
     const draft = await repository().update(id, action, revision); merge(draft); return draft;
@@ -67,10 +68,11 @@ export function useWorkspace() {
   }
   async function savePreferences(value: Preferences) { await repository().savePreferences(value); setPreferences(value); }
   async function getMedia(draftId: string, attachmentId: string) { return repository().media(draftId, attachmentId); }
+  async function activateDraft(id?: string) { await repository().activateDraft(id); setActiveDraftId(id); }
   async function retryJob(id: string) { await repository().retryJob(id); setJobs(await repository().jobs()); runner.current?.wake(); }
   async function reviewJob(id: string, fields: Partial<Contact>, revision: number, appendTranscript = false) {
     const draft = await repository().reviewJob(id, fields, revision, appendTranscript); merge(draft); setJobs(await repository().jobs());
   }
-  return { drafts, jobs, supportedKinds, preferences, loading, error, retry: () => setGeneration(g => g + 1), create, update, attach, savePreferences, getMedia, retryJob, reviewJob };
+  return { drafts, activeDraftId, activateDraft, jobs, supportedKinds, preferences, loading, error, retry: () => setGeneration(g => g + 1), create, update, attach, savePreferences, getMedia, retryJob, reviewJob };
 }
 export type Workspace = ReturnType<typeof useWorkspace>;

@@ -50,3 +50,25 @@ test('concurrent patches retain both edits and stale forms cannot overwrite newe
   expect((await b.list())[0].contact.name).toBe('Visitor A');
   await a.close(); await b.close();
 });
+
+test('active visitor survives reopening; append-only notes survive concurrent writes and retries', async () => {
+  const name = crypto.randomUUID();
+  const a = await openRepository(name);
+  const b = await openRepository(name);
+  await a.create(createDraft('a', 'contact', '', now), true);
+  await b.create(createDraft('b', 'voice', '', now), true);
+  await a.activateDraft('a');
+  await Promise.all([
+    a.update('a', { type: 'addNote', id: 'one', text: 'First requirement' }),
+    b.update('a', { type: 'addNote', id: 'two', text: 'Second requirement' }),
+  ]);
+  await a.update('a', { type: 'addNote', id: 'one', text: 'First requirement' });
+  await expect(a.activateDraft('missing')).rejects.toThrow('no longer exists');
+  await a.close(); await b.close();
+  const reopened = await openRepository(name);
+  expect(await reopened.activeDraft()).toBe('a');
+  const records = await reopened.list();
+  expect(records.find(d => d.id === 'a')?.entries?.map(e => e.text).sort()).toEqual(['First requirement', 'Second requirement']);
+  expect(records.find(d => d.id === 'b')?.entries).toBeUndefined();
+  await reopened.close();
+});

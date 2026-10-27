@@ -5,7 +5,9 @@ export type Preferences = { sender: Sender; event: string };
 export const defaultPreferences: Preferences = { sender: { name: '', company: 'BEVMAQ', phone: '' }, event: '' };
 export interface DraftRepository extends ProcessingRepository {
   list(): Promise<Draft[]>;
-  create(draft: Draft): Promise<void>;
+  create(draft: Draft, activate?: boolean): Promise<void>;
+  activeDraft(): Promise<string | undefined>;
+  activateDraft(id?: string): Promise<void>;
   update(id: string, action: DraftAction, expectedRevision?: number, media?: Uint8Array): Promise<Draft>;
   media(draftId: string, attachmentId: string): Promise<Uint8Array | undefined>;
   preferences(): Promise<Preferences>;

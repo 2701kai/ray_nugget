@@ -21,6 +21,28 @@ Open http://localhost:8081. Microphone capture requires localhost or HTTPS and
 browser permission. Capture and card OCR need no account or seeded customer data.
 The web command prepares the local OCR assets automatically from Bun dependencies.
 
+For the installable PWA and offline reopening, use the production build:
+
+```sh
+bun run build:web
+bun run preview
+```
+
+Stop the development server first; both commands use http://localhost:8081 so
+existing drafts remain available. Chromium offers installation in its browser menu
+and Pete's Settings when supported. On iPhone, use Safari's Share menu → Add to
+Home Screen. A real phone needs a reachable HTTPS host; localhost on the phone
+refers to the phone itself. Public hosting is not configured yet.
+
+The first successful online load caches the application shell. Settings confirms
+when it is ready to reopen offline. Captures remain local while offline, and queued
+processing resumes after reconnecting. Large OCR resources load on demand. Only
+public application resources enter the service-worker cache; customer media and
+drafts stay in IndexedDB. Updates wait until existing Pete tabs are closed, so an
+update cannot reload an ongoing recording. Development/HMR does not install a
+worker; unregister a previous worker in browser DevTools before switching that
+same origin back to development, without clearing IndexedDB/site data.
+
 For a phone preview, run `bun run start` and open the project in a compatible
 Expo Go app on the same network. `bun run android` starts an available Android
 device/emulator; `bun run ios` requires macOS and an iOS simulator. Actual phone
@@ -63,6 +85,13 @@ of automatically submitting a duplicate. That case needs an operation check.
 
 - Four capture entry points, explicit new visitors, editable contact/event details,
   searchable drafts, and buyer/seller requests.
+- Opening a draft goes straight to its conversation feed. The selected visitor
+  survives reloads. Voice note, card photo, and quick-note controls stay at the
+  bottom of the phone screen; Details & request holds editable structured fields.
+  Voice note starts recording on one tap. Record conversation opens consent and
+  the longer recording mode. Card photo offers the rear camera or an existing image.
+- Notes and original media form a chronological feed. Pending captures and delayed
+  processing results keep their source draft ID when another visitor is opened.
 - RFQ completeness checks for product, container, and throughput with units.
 - Original card photos and voice recordings saved with the selected draft;
   audio playback, attachment hashes, and duplicate protection. Voice notes are
@@ -83,7 +112,7 @@ of automatically submitting a duplicate. That case needs an operation check.
 - A dated German WhatsApp introduction preview with salesperson details and
   recipient checks. Correcting contact details marks an existing preview outdated.
   Copying a preview is supported; opening WhatsApp and sending are not connected.
-- JSON metadata export, including provenance and unresolved RFQ fields.
+- JSON metadata export, including notes, source text, provenance, and unresolved RFQ fields.
   Original media is **not** included in the export.
 
 CRM writes, Ray matching, and automatic WhatsApp sending remain future integrations.
@@ -93,9 +122,11 @@ source text and correct OCR/transcription errors before applying details.
 
 Data belongs to this installation/browser origin. There is no sync or backup;
 clearing site data or uninstalling the app removes local records. A future move
-from localhost to `pete.bevmaq.com` will use a different browser database. The web
-preview has no offline app-shell cache; it needs the server to load the app.
-Keep recording open until saving finishes.
+from localhost to `pete.bevmaq.com` will use a different browser database.
+The development preview needs the server to reopen; the production PWA can reopen
+offline after its first successful cache installation. Keep recording open until
+saving finishes. Automatic structured RFQ extraction is still pending; today the
+transcript is reviewable and the request fields are editable manually.
 
 ## Verification
 
@@ -113,6 +144,10 @@ To use an existing Chrome installation instead:
 
 ```sh
 PLAYWRIGHT_CHROMIUM_EXECUTABLE=/usr/bin/google-chrome bun run test:e2e
+
+# Production suite also verifies installation resources and offline reload/capture.
+EXPO_PUBLIC_PROCESSING_URL=http://127.0.0.1:8091 bun run build:web
+PETE_E2E_PRODUCTION=1 PLAYWRIGHT_CHROMIUM_EXECUTABLE=/usr/bin/google-chrome bun run test:e2e
 ```
 
 The browser suite starts or reuses the local server and uses synthetic contacts,
@@ -122,6 +157,8 @@ Its server configuration enables the mock gateway URL even without cloud credent
 If reusing a manually started server, use the same `EXPO_PUBLIC_PROCESSING_URL` as
 `.env.example`. Tests cover capture/reload/playback, visitor separation, RFQs, export,
 follow-up corrections, narrow screens, permission denial, and extraction review.
+Production tests use port 8082 and additionally cover offline reopen/recording,
+reconnection, source association after switching visitors, and static-only caching.
 Unit tests cover draft rules, database migration, transaction rollback, queue leases,
 retry/recovery, manual-edit protection, and Google operation persistence/cleanup.
 These checks do not replace physical-device testing. An Android JavaScript/Hermes

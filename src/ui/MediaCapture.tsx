@@ -16,11 +16,11 @@ export function CardCapture({ draft, workspace, done, lock }: { draft: Draft; wo
     if (active.current) return;
     active.current = true; setError(''); setBusy(true); lock(true);
     try {
-      if (camera) {
+      if (camera && Platform.OS !== 'web') {
         const permission = await ImagePicker.requestCameraPermissionsAsync();
         if (!permission.granted) throw new Error('Camera access is off. Allow it in device settings or choose a photo instead.');
       }
-      const options: ImagePicker.ImagePickerOptions = { mediaTypes: ['images'], quality: 1, allowsEditing: false };
+      const options: ImagePicker.ImagePickerOptions = { mediaTypes: ['images'], quality: 1, allowsEditing: false, cameraType: ImagePicker.CameraType.back };
       const result = camera ? await ImagePicker.launchCameraAsync(options) : await ImagePicker.launchImageLibraryAsync(options);
       if (result.canceled) return;
       const asset = result.assets[0];
@@ -33,14 +33,15 @@ export function CardCapture({ draft, workspace, done, lock }: { draft: Draft; wo
   return <>
     <View style={{ padding: 32, minHeight: 170, backgroundColor: colors.pale, borderRadius: 16, borderWidth: 1, borderColor: colors.line, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', gap: 14 }}><Icon name="card" size={42} color={colors.green} /><Txt weight="semibold">One card. Keep the connection.</Txt><Txt style={{ color: colors.muted, fontSize: 12, textAlign: 'center' }}>Keep the card in frame and the text in focus.</Txt></View>
     <ErrorNotice message={error} />
-    {Platform.OS !== 'web' && <Button label={busy ? 'Saving photo…' : 'Take a photo'} icon="camera" disabled={busy} onPress={() => pick(true)} />}
-    <Button label={busy ? 'Saving photo…' : 'Choose a card photo'} icon="card" disabled={busy} onPress={() => pick(false)} kind={Platform.OS === 'web' ? 'primary' : 'secondary'} />
+    <Button label={busy ? 'Saving photo…' : 'Take a photo'} icon="camera" disabled={busy} onPress={() => pick(true)} />
+    <Button label={busy ? 'Saving photo…' : 'Choose a card photo'} icon="card" disabled={busy} onPress={() => pick(false)} kind="secondary" />
+    {Platform.OS === 'web' && <Txt style={{ fontSize: 11, color: colors.muted }}>On a phone, Take a photo requests the rear camera. Your browser may offer a camera or file chooser.</Txt>}
     <Txt style={{ fontSize: 12, lineHeight: 20, color: colors.muted }}>The original photo is saved first. In the browser preview, Pete reads the card on this device, then lets you review the text and contact suggestions.</Txt>
   </>;
 }
 
-export function VoiceCapture({ draft, workspace, done, lock }: { draft: Draft; workspace: Workspace; done: () => void; lock: (locked: boolean) => void }) {
-  const [mode, setMode] = useState<'memo' | 'conversation'>('memo');
+export function VoiceCapture({ draft, workspace, done, lock, initialMode = 'memo', autoStart = false }: { draft: Draft; workspace: Workspace; done: () => void; lock: (locked: boolean) => void; initialMode?: 'memo' | 'conversation'; autoStart?: boolean }) {
+  const [mode, setMode] = useState<'memo' | 'conversation'>(initialMode);
   const [consent, setConsent] = useState(false);
   const [phase, setPhase] = useState<'idle' | 'preparing' | 'recording' | 'saving' | 'retry'>('idle');
   const [error, setError] = useState('');
@@ -79,6 +80,7 @@ export function VoiceCapture({ draft, workspace, done, lock }: { draft: Draft; w
     } catch (e) { setPhase('idle'); lock(false); setError(e instanceof Error ? e.message : 'Recording could not start.'); }
     finally { active.current = false; }
   }
+  useEffect(() => { if (autoStart && initialMode === 'memo') void start(); }, []);
   async function finish() {
     if (active.current) return;
     active.current = true; setError(''); setPhase('saving'); lock(true);

@@ -1,0 +1,15 @@
+{
+  "id": "/",
+  "name": "Pete by BEVMAQ",
+  "short_name": "Pete",
+  "description": "Capture customer conversations, business cards, and requests.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#F6F7F3",
+  "theme_color": "#365C49",
+  "icons": [
+    { "src": "/icons/pete-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/icons/pete-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
