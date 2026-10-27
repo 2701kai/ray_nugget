@@ -5,7 +5,7 @@ import type { Extraction, ProcessingJob } from './jobs';
 export interface Processor {
   kinds: Attachment['kind'][];
   isAvailable?(kind: Attachment['kind']): boolean;
-  process(job: ProcessingJob, bytes: Uint8Array, mimeType: string, signal: AbortSignal): Promise<Extraction>;
+  process(job: ProcessingJob, bytes: Uint8Array, mimeType: string, signal: AbortSignal, checkpoint?: (source: Extraction) => Promise<void>): Promise<Extraction>;
   close(): Promise<void>;
 }
 
@@ -38,7 +38,9 @@ export function startProcessing(repo: DraftRepository, processor: Processor, cha
       const attachment = draft?.attachments.find(a => a.id === activeJob.attachmentId);
       const bytes = await repo.media(activeJob.draftId, activeJob.attachmentId);
       if (!attachment || !bytes) throw new Error('The original recording or photo is unavailable.');
-      const result = await processor.process(activeJob, bytes, attachment.mimeType, controller.signal);
+      const result = await processor.process(activeJob, bytes, attachment.mimeType, controller.signal, async source => {
+        if (!await repo.saveJobSource(activeJob.id, leaseId, source)) throw new Error('Processing moved to another session.');
+      });
       if (!controller.signal.aborted) await repo.finishJob(activeJob.id, leaseId, result);
     } catch (e) {
       if (!controller.signal.aborted) {

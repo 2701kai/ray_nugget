@@ -13,7 +13,11 @@ In order, the file contains:
 
 The manifest has `format: "pete-backup/v1"`, `draft` (domain Draft schema v1),
 and `jobs`. Each job carries attachmentId, createdAt, updatedAt, plus result and
-reviewedAt only when complete. Attachment bytes and sha256 define the bounds and
+reviewedAt only when complete. Results may additionally carry a request (intent,
+product, packaging, capacity pair), source-quote evidence and clarification questions.
+These optional fields are additive; older backups without them remain valid.
+Automatic draft values carry source provenance without a reviewedAt/appliedJobs
+entry until explicitly reviewed. Attachment bytes and sha256 define the bounds and
 integrity of each original. Missing data, extra trailing bytes, invalid source
 references, duplicates, unsupported media types or versions are rejected. Only
 known metadata fields are reconstructed. Hashes detect corruption, not authorship.

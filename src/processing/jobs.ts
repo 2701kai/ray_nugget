@@ -1,9 +1,17 @@
+import { requestFields, detailKeys, type CapturedDetails } from '../domain/details';
 import { checkRevision, reduceDraft, type Attachment, type Contact, type Draft, type RequestReview } from '../domain/draft';
 
 export const LEASE_MS = 30_000;
 export const MAX_ATTEMPTS = 3;
 export const NEVER = Number.MAX_SAFE_INTEGER;
-export type Extraction = { text: string; fields: Partial<Contact>; engine: string };
+export type Extraction = CapturedDetails & { text: string; engine: string };
+export function validateExtraction(result: Extraction) {
+  if (!result || typeof result.text !== 'string' || result.text.length > 50_000 || typeof result.engine !== 'string' || !result.engine || result.engine.length > 100 || !result.fields || typeof result.fields !== 'object' || Array.isArray(result.fields)) throw new Error('Invalid extraction result.');
+  for (const [key, value] of Object.entries(result.fields)) if (!['name', 'company', 'phone', 'email'].includes(key) || typeof value !== 'string' || value.length > 2000) throw new Error('Invalid extracted field.');
+  if (result.request !== undefined) requestFields(result.request);
+  if (result.questions !== undefined && (!Array.isArray(result.questions) || result.questions.length > 6 || result.questions.some(q => typeof q !== 'string' || q.length > 300))) throw new Error('Invalid clarification.');
+  if (result.evidence !== undefined && (!result.evidence || typeof result.evidence !== 'object' || Array.isArray(result.evidence) || Object.entries(result.evidence).some(([key, value]) => !detailKeys.includes(key as typeof detailKeys[number]) || typeof value !== 'string' || value.length > 1000))) throw new Error('Invalid source evidence.');
+}
 export type ReviewOptions = { appendTranscript?: boolean; request?: RequestReview };
 export type ProcessingJob = {
   id: string; draftId: string; attachmentId: string; kind: Attachment['kind'];
@@ -50,16 +58,24 @@ export function processingRepository(driver: JobDriver) {
         await tx.putJob({ ...job, readyAt: now + LEASE_MS, updatedAt: now }); return true;
       });
     },
+    saveJobSource(id: string, leaseId: string, source: Extraction, now = Date.now()) {
+      return driver.atomic(async tx => {
+        const job = await tx.job(id);
+        if (!owns(job, leaseId, now)) return false;
+        validateExtraction(source);
+        await tx.putJob({ ...job, result: source, updatedAt: now });
+        return true;
+      });
+    },
     finishJob(id: string, leaseId: string, result: Extraction, now = Date.now()) {
       return driver.atomic(async tx => {
         const job = await tx.job(id);
         if (!owns(job, leaseId, now)) return false;
-        if (typeof result.text !== 'string' || result.text.length > 50_000 || !result.engine || result.engine.length > 100) throw new Error('Invalid extraction result.');
-        for (const [key, value] of Object.entries(result.fields)) {
-          if (!['name', 'company', 'phone', 'email'].includes(key) || typeof value !== 'string' || value.length > 2000) throw new Error('Invalid extracted field.');
-        }
+        validateExtraction(result);
         const draft = await tx.draft(job.draftId);
         if (!draft?.attachments.some(a => a.id === job.attachmentId)) throw new Error('The extraction source no longer belongs to this visitor.');
+        const filled = reduceDraft(draft, { type: 'autofill', jobId: job.id, attachmentId: job.attachmentId, fields: result.fields, request: job.kind === 'voice' ? result.request : undefined }, new Date(now).toISOString());
+        await tx.putDraft(filled);
         await tx.putJob({ ...job, state: 'complete', readyAt: NEVER, leaseId: undefined, result, updatedAt: now });
         return true;
       });

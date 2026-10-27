@@ -1,5 +1,5 @@
 import { View } from 'react-native';
-import type { Draft } from '../domain/draft';
+import { rfqGaps, type Draft } from '../domain/draft';
 import type { Workspace } from '../useWorkspace';
 import { MediaItem } from './DraftDetail';
 import { Icon } from './Icon';
@@ -16,8 +16,9 @@ export function Conversation({ draft, workspace }: { draft: Draft; workspace: Wo
     {!entries.length && <View style={{ paddingVertical: 42, gap: 14, alignItems: 'flex-start' }}>
       <View style={{ backgroundColor: colors.sage, padding: 16, borderRadius: 20 }}><Icon name="mic" size={32} color={colors.green} /></View>
       <Txt weight="bold" style={{ fontSize: 25, lineHeight: 33, letterSpacing: -0.8 }}>Their story starts here.</Txt>
-      <Txt style={{ color: colors.muted, maxWidth: 380, lineHeight: 24 }}>Record a quick voice note, photograph their card, or write down a detail. Everything stays in this conversation.</Txt>
+      <Txt style={{ color: colors.muted, maxWidth: 380, lineHeight: 24 }}>Say who you met and what they need, or photograph their card. Pete fills the details here. No typing needed.</Txt>
     </View>}
+    {!!entries.length && !!rfqGaps(draft.request).length && <View style={{ backgroundColor: colors.pale, padding: 16, borderRadius: 12, gap: 6 }}><Txt weight="semibold">Add the rest by voice</Txt><Txt style={{ color: colors.muted }}>Tell Pete {rfqGaps(draft.request).map(gap => gap === 'Product' ? 'what they want to fill' : gap === 'Container' ? 'which container they need' : 'the throughput and unit').join(', ')}. Use Voice note below.</Txt></View>}
     {entries.map(entry => <View key={entry.id} style={{ gap: 7 }}>
       <Eyebrow>{entry.kind === 'note' ? 'NOTE' : entry.item.kind === 'card' ? 'BUSINESS CARD' : entry.item.voiceMode === 'conversation' ? 'CONVERSATION' : 'VOICE NOTE'} · {new Date(entry.at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}</Eyebrow>
       {entry.kind === 'media' ? <>

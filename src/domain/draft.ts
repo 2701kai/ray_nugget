@@ -1,3 +1,5 @@
+import { requestFields } from './details';
+
 export type CaptureKind = 'contact' | 'request' | 'card' | 'voice';
 export type Contact = { name: string; company: string; email: string; phone: string };
 export type Request = {
@@ -7,7 +9,7 @@ export type Request = {
   throughput: string;
   unit: '' | 'units/h' | 'bottles/h' | 'L/h';
 };
-export type RequestReview = Partial<Pick<Request, 'product' | 'packaging'>> & {
+export type RequestReview = Partial<Pick<Request, 'intent' | 'product' | 'packaging'>> & {
   capacity?: Pick<Request, 'throughput' | 'unit'>;
 };
 export type Attachment = {
@@ -54,6 +56,7 @@ export type DraftAction =
   | { type: 'addNote'; id: string; text: string }
   | { type: 'attach'; attachment: Attachment }
   | { type: 'enrich'; jobId: string; attachmentId: string; fields: Partial<Contact> }
+  | { type: 'autofill'; jobId: string; attachmentId: string; fields: Partial<Contact>; request?: RequestReview }
   | { type: 'reviewExtraction'; jobId: string; attachmentId: string; fields: Partial<Contact>; request?: RequestReview; transcript?: string }
   | { type: 'followup'; sender: Sender; operationId: string };
 
@@ -136,7 +139,7 @@ export function reduceDraft(draft: Draft, action: DraftAction, now: string): Dra
     if (attachment.kind === 'voice' && attachment.voiceMode === 'conversation' && !attachment.consentConfirmed) throw new Error('Confirm consent before saving a conversation recording.');
     if (draft.attachments.some(a => a.id === attachment.id || (a.sha256 === attachment.sha256 && a.kind === attachment.kind))) return draft;
     next.attachments.push(attachment);
-  } else if (action.type === 'enrich') {
+  } else if (action.type === 'enrich' || action.type === 'autofill') {
     if (draft.appliedJobs.includes(action.jobId)) return draft;
     if (!draft.attachments.some(a => a.id === action.attachmentId)) throw new Error('The extraction source does not belong to this draft.');
     for (const field of Object.keys(action.fields) as Array<keyof Contact>) {
@@ -144,14 +147,27 @@ export function reduceDraft(draft: Draft, action: DraftAction, now: string): Dra
       const value = action.fields[field]?.trim();
       if (!value) continue;
       const key = `contact.${field}`;
-      if (next.contact[field] || next.provenance[key]?.source === 'manual') {
-        if (next.contact[field] !== value) next.suggestions.push({ field, value, attachmentId: action.attachmentId, jobId: action.jobId });
+      if (next.contact[field] || next.provenance[key]) {
+        if (next.contact[field] !== value && !next.suggestions.some(s => s.jobId === action.jobId && s.field === field && s.value === value)) next.suggestions.push({ field, value, attachmentId: action.attachmentId, jobId: action.jobId });
       } else {
         next.contact[field] = value;
         next.provenance[key] = { source: 'extraction', at: now, attachmentId: action.attachmentId, jobId: action.jobId };
       }
     }
-    next.appliedJobs.push(action.jobId);
+    if (action.type === 'autofill' && action.request) {
+      const fields = requestFields(action.request);
+      const capacityProtected = !!(next.request.throughput || next.request.unit || next.provenance['request.throughput'] || next.provenance['request.unit']);
+      for (const [field, value] of Object.entries(fields)) {
+        const key = `request.${field}`;
+        if ((field === 'throughput' || field === 'unit') && capacityProtected) continue;
+        if (next.provenance[key] || (field === 'intent' ? next.request.intent !== 'unspecified' : !!next.request[field as keyof Request])) continue;
+        Object.assign(next.request, { [field]: value!.trim() });
+        next.provenance[key] = { source: 'extraction', at: now, attachmentId: action.attachmentId, jobId: action.jobId };
+      }
+    }
+    // Automatic filling is deliberately unreviewed; a later explicit review
+    // must still be able to confirm or replace these source-bound values.
+    if (action.type === 'enrich') next.appliedJobs.push(action.jobId);
   } else if (action.type === 'reviewExtraction') {
     if (draft.appliedJobs.includes(action.jobId)) return draft;
     if (!draft.attachments.some(a => a.id === action.attachmentId)) throw new Error('The extraction source does not belong to this draft.');
@@ -161,10 +177,7 @@ export function reduceDraft(draft: Draft, action: DraftAction, now: string): Dra
       next.provenance[`contact.${field}`] = { source: 'extraction', at: now, reviewedAt: now, attachmentId: action.attachmentId, jobId: action.jobId };
     }
     if (action.request) {
-      if (Object.keys(action.request).some(key => !['product', 'packaging', 'capacity'].includes(key))) throw new Error('Invalid reviewed request field.');
-      const { capacity, ...details } = action.request;
-      if (capacity && (typeof capacity.throughput !== 'string' || capacity.throughput.length > 2000 || !/^\d+(?:[.,]\d+)?$/.test(capacity.throughput.trim()) || !Number.isFinite(Number(capacity.throughput.replace(',', '.'))) || Number(capacity.throughput.replace(',', '.')) <= 0 || !['units/h', 'bottles/h', 'L/h'].includes(capacity.unit))) throw new Error('Use a positive throughput and select its unit.');
-      const fields = { ...details, ...(capacity ? { throughput: capacity.throughput, unit: capacity.unit } : {}) };
+      const fields = requestFields(action.request);
       for (const [field, value] of Object.entries(fields)) {
         if (typeof value !== 'string' || value.length > 2000) throw new Error('Invalid reviewed request field.');
         Object.assign(next.request, { [field]: value.trim() });

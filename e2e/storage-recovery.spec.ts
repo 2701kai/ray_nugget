@@ -65,7 +65,7 @@ test('reported index failure falls back without blocking capture and keeps origi
   await (await chooser).setFiles({ name: 'safari-card.png', mimeType: 'image/png', buffer: Buffer.from(png, 'base64') });
   await expect(page.getByRole('button', { name: 'Review extracted text', exact: true })).toBeVisible({ timeout: 45000 });
   await page.getByRole('button', { name: 'Review extracted text', exact: true }).click();
-  await expect(page.getByLabel('Email', { exact: true })).toHaveValue('safari@example.test');
+  await expect(page.getByText('safari@example.test', { exact: true }).last()).toBeVisible();
   await page.getByRole('checkbox', { name: 'Use email', exact: true }).check();
   await page.getByRole('button', { name: 'Apply selected details', exact: true }).click();
   await expect(page.getByText('Reviewed · source text kept', { exact: true })).toBeVisible();
@@ -74,7 +74,7 @@ test('reported index failure falls back without blocking capture and keeps origi
   await expect(page.getByRole('heading', { name: 'Safari recovery visitor', exact: true })).toBeVisible();
   await expect(page.getByRole('img', { name: 'safari-card.png', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Details & request', exact: true }).click();
-  await expect(page.getByText('safari@example.test', { exact: true })).toBeVisible();
+  await expect(page.getByText('safari@example.test', { exact: true }).last()).toBeVisible();
   await expect(page.getByRole('button', { name: 'Retry local storage', exact: true })).toHaveCount(0);
 });
 

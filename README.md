@@ -188,16 +188,28 @@ of automatically submitting a duplicate. That case needs an operation check.
   from capture. Older local databases migrate their existing attachments into jobs.
 - Browser card OCR uses English/German Tesseract in a Web Worker, with engine and
   model files served from Pete's own origin. Card photos are not uploaded for OCR.
-- Source text and suggested contact fields stay separate until reviewed. Existing
-  or manually cleared details are unselected by default; applying a review checks
-  the draft revision. Transcripts can be copied or explicitly appended to notes.
-- Voice review also suggests RFQ product, container, and throughput with its unit.
-  Each suggestion shows its source phrase and can be corrected or deselected.
-  A local English/German parser recognizes labelled fields, common beverage and
-  packaging terms, and explicit hourly rates. Conflicting matches, recognized
-  negations, estimates, and ranges remain in the transcript for manual review.
-  It does not infer buyer/seller intent, missing units, or convert per-minute rates.
-  Previously saved, unreviewed transcripts work without another cloud request.
+- New visitor opens straight into the conversation. Speaking and photographing a
+  card require no contact/request form. Clear extracted details fill empty fields
+  automatically; manual edits, deliberate blanks and earlier values are preserved.
+  Conflicting results remain available for a tap-to-select review; typing is optional.
+- Hosted OCR text and transcripts are interpreted by `gemini-3.1-flash-lite` through
+  the company's EU multi-region endpoint (`aiplatform.eu.rep.googleapis.com`, location
+  `eu`). A single structured call proposes contact details and voice-derived buying/
+  selling intent, product, packaging, and paired throughput/unit. Source quotes,
+  schemas, lengths, phone codes and units are validated before source-bound commit.
+  Ambiguous details stay in the source with a clarification. Model errors remain
+  possible; corrections and optional source review stay available.
+- Source text is checkpointed locally before interpretation, so retries reuse OCR/
+  transcription. Server results are cached per Firebase owner, source kind, text hash
+  and extraction version. Atomic leases fence concurrent calls; at most two model
+  attempts per source and daily limits of 100 per user / 500 globally bound usage.
+  Result/evidence metadata is stored in the existing `pete` Firestore database;
+  whole input text is not duplicated in the extraction cache. Photo originals stay
+  local. Removing `PETE_DETAILS_MODEL` disables hosted extraction; sources stay saved.
+  Runtime identity needs `roles/aiplatform.user` as well as existing permissions.
+- The unauthenticated localhost preview keeps its conservative local contact/RFQ
+  parser. Hosted interpretation does not run without company authentication. Older
+  completed captures keep their prior review flow; no bulk reprocessing is triggered.
 - A dated German WhatsApp introduction preview with salesperson details and
   recipient checks. Correcting contact details marks an existing preview outdated.
   Copying a preview is supported; opening WhatsApp and sending are not connected.
@@ -218,9 +230,9 @@ Save backup files separately before moving devices or clearing storage. A move
 from localhost to `pete.bevmaq.com` uses a different browser database.
 The development preview needs the server to reopen; the production PWA can reopen
 offline after its first successful cache installation. Keep recording open until
-saving finishes. RFQ suggestions use limited text patterns, not a general language
-model; unrecognized phrasing and transcription errors still require manual review.
-Selecting throughput always applies its amount and unit together.
+saving finishes. OCR, transcription and model interpretation can be wrong; check
+important details before acting on them. Throughput and its unit are applied together.
+Physical-phone capture quality and long-conversation endurance still need field tests.
 
 ## Back up and recover a visitor
 
@@ -326,3 +338,18 @@ not an app dependency, and production-app/device reverse engineering remains ope
 Analysis uses the existing global `rea` CLI, not a project npm/npx installation.
 Private source recordings, findings, plans, screenshots, and local agent
 instructions remain Git-excluded under `__docs__/` and local configuration paths.
+
+### Automatic-filling verification
+
+After `bun run build:hosted`, run `bun run test:hosted`. Isolated browser profiles
+use synthetic Firebase identity state and intercept every external/API request;
+no live identity is changed and no fixture reaches Google. The suite exercises
+real local OCR, microphone capture, automatic filling without form entry, delayed
+visitor association, source checkpoint reuse, reload and optional manual review.
+`bun run eval:details` is a separate, opt-in **live company-GCP** check using only
+seven committed synthetic texts (English/German, clear and ambiguous input, and
+embedded instructions). It consumes model quota and requires ADC. Passing that
+small evaluation is not a general extraction-accuracy claim.
+
+The EU processing endpoint follows Google's
+[multi-region location guidance](https://docs.cloud.google.com/vertex-ai/generative-ai/docs/learn/locations).

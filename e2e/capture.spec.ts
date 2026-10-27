@@ -31,6 +31,7 @@ test('visitor and RFQ drafts survive reload and remain separate', async ({ page 
   await page.getByRole('button', { name: 'Save request', exact: true }).click();
   await expect(page.getByText('Filling requirements captured', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'New visitor', exact: true }).click();
+  await page.getByRole('button', { name: 'Edit contact', exact: true }).click();
   await contact(page, 'Ivo Berg · test', '+12025550183');
   await expect(page.getByText('3 filling requirements still to ask', { exact: true })).toBeVisible();
   await page.reload();
@@ -114,7 +115,7 @@ test('conversation consent and microphone denial do not produce a saved recordin
   });
   await open(page);
   await page.getByRole('button', { name: 'New visitor', exact: true }).click();
-  await page.getByRole('button', { name: 'Close', exact: true }).click();
+  await expect(page.getByRole('textbox')).toHaveCount(1); // Only the library search; no capture form.
   await page.getByRole('button', { name: 'Record conversation', exact: true }).click();
   await expect(page.getByText('Up to 30 minutes. Stop and save when you are done.', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Start recording', exact: true })).toBeDisabled();
@@ -145,6 +146,7 @@ test('real local OCR produces reviewable fields without replacing an existing vi
   await (await chooser).setFiles({ name: 'synthetic-readable-card.png', mimeType: 'image/png', buffer: Buffer.from(png, 'base64') });
   await expect(page.getByRole('button', { name: 'Review extracted text', exact: true })).toBeVisible({ timeout: 60000 });
   await page.getByRole('button', { name: 'Review extracted text', exact: true }).click();
+  await page.getByRole('button', { name: 'Edit details manually', exact: true }).click();
   await expect(page.getByLabel('Email', { exact: true })).toHaveValue('mara@example.test');
   await expect(page.getByRole('checkbox', { name: 'Use company', exact: true })).not.toBeChecked();
   await expect(page.getByRole('checkbox', { name: 'Use full name', exact: true })).not.toBeChecked();
@@ -167,6 +169,7 @@ test('a returned transcript is reviewed before being appended to conversation no
   await page.getByRole('button', { name: 'Stop and save recording', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Review extracted text', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Review extracted text', exact: true }).click();
+  await page.getByRole('button', { name: 'Edit details manually', exact: true }).click();
   await page.getByRole('checkbox', { name: 'Append transcript to conversation notes', exact: true }).click();
   await expect(page.getByRole('checkbox', { name: 'Use container / packaging', exact: true })).toBeChecked();
   await expect(page.getByRole('checkbox', { name: 'Use throughput and unit', exact: true })).toBeChecked();
@@ -192,6 +195,7 @@ test('mobile RFQ review protects corrected and cleared fields while applying sel
   await expect(page.getByText(/^00:0[1-3]$/)).toBeVisible();
   await page.getByRole('button', { name: 'Stop and save recording', exact: true }).click();
   await page.getByRole('button', { name: 'Review extracted text', exact: true }).click();
+  await page.getByRole('button', { name: 'Edit details manually', exact: true }).click();
   await expect(page.getByLabel('Product to fill', { exact: true })).toHaveValue('juice');
   await expect(page.getByRole('checkbox', { name: 'Use product', exact: true })).not.toBeChecked();
   await expect(page.getByRole('checkbox', { name: 'Use container / packaging', exact: true })).not.toBeChecked();
@@ -234,6 +238,8 @@ test('late transcription stays with its original visitor while another conversat
   await page.getByRole('button', { name: 'Stop and save recording', exact: true }).click();
   await processing;
   await page.getByRole('button', { name: 'New visitor', exact: true }).click();
+  await page.getByRole('button', { name: 'Details & request', exact: true }).click();
+  await page.getByRole('button', { name: 'Edit contact', exact: true }).click();
   await page.getByLabel('Full name', { exact: true }).fill('Visitor B');
   await page.getByRole('button', { name: 'Save contact', exact: true }).click();
   await page.getByRole('button', { name: 'Add quick note', exact: true }).click();

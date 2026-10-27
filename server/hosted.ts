@@ -1,3 +1,4 @@
+import { detailService, googleDetails } from './details';
 import { initializeApp, applicationDefault } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { initializeFirestore } from 'firebase-admin/firestore';
@@ -17,6 +18,7 @@ const app = initializeApp({ credential: applicationDefault(), projectId: project
 const db = initializeFirestore(app, { preferRest: true }, process.env.PETE_FIRESTORE_DATABASE || 'pete');
 const cloud = speechCloud({ project, bucket, location, model, languages: (process.env.PETE_SPEECH_LANGUAGES || 'de-DE,en-US').split(',') });
 const jobs = hostedJobs(firestoreStore(db), cloud, hostedStorage(project, bucket));
-const handler = hostedHandler(jobs, token => getAuth(app).verifyIdToken(token), origins, `Google Speech-to-Text V2 · ${model} · ${location}`);
-Bun.serve({ hostname: '0.0.0.0', port: Number(process.env.PORT || 8080), maxRequestBodySize: 4096, idleTimeout: 120, fetch: handler });
+const details = process.env.PETE_DETAILS_MODEL ? detailService(firestoreStore(db), googleDetails(project, process.env.PETE_DETAILS_MODEL)) : undefined;
+const handler = hostedHandler(jobs, token => getAuth(app).verifyIdToken(token), origins, `Google Speech-to-Text V2 · ${model} · ${location}`, details);
+Bun.serve({ hostname: '0.0.0.0', port: Number(process.env.PORT || 8080), maxRequestBodySize: 350_000, idleTimeout: 120, fetch: handler });
 console.log('Pete hosted API ready. Company authentication is required.');

@@ -36,7 +36,7 @@ export function CardCapture({ draft, workspace, done, lock }: { draft: Draft; wo
     <Button label={busy ? 'Saving photo…' : 'Take a photo'} icon="camera" disabled={busy} onPress={() => pick(true)} />
     <Button label={busy ? 'Saving photo…' : 'Choose a card photo'} icon="card" disabled={busy} onPress={() => pick(false)} kind="secondary" />
     {Platform.OS === 'web' && <Txt style={{ fontSize: 16, color: colors.muted }}>On a phone, Take a photo requests the rear camera. Your browser may offer a camera or file chooser.</Txt>}
-    <Txt style={{ fontSize: 16, lineHeight: 24, color: colors.muted }}>The original photo is saved first. In the browser preview, Pete reads the card on this device, then lets you review the text and contact suggestions.</Txt>
+    <Txt style={{ fontSize: 16, lineHeight: 24, color: colors.muted }}>The original photo stays on this device. Pete reads the text locally. In the company app, that text is processed by Google in the EU to fill the visitor’s details.</Txt>
   </>;
 }
 
@@ -112,6 +112,6 @@ export function VoiceCapture({ draft, workspace, done, lock, initialMode = 'memo
     </View>
     <ErrorNotice message={error} />
     <Button label={recording ? 'Stop and save recording' : phase === 'retry' ? 'Retry saving recording' : phase === 'saving' ? 'Saving recording…' : phase === 'preparing' ? 'Preparing microphone…' : 'Start recording'} icon={recording ? 'stop' : 'mic'} disabled={phase === 'saving' || phase === 'preparing' || (mode === 'conversation' && !consent)} onPress={recording || phase === 'retry' ? finish : start} />
-    <Txt style={{ color: colors.muted, fontSize: 16, lineHeight: 24 }}>{workspace.supportedKinds.includes('voice') ? 'The original stays on this device. A copy is sent to your company’s Google Cloud Speech service in the EU for transcription. Review the result before using it.' : 'The original stays on this device. Transcription is not configured on this platform.'} Leaving the app stops and attempts to save the recording; keep the app open until saving finishes.</Txt>
+    <Txt style={{ color: colors.muted, fontSize: 16, lineHeight: 24 }}>{workspace.supportedKinds.includes('voice') ? 'The original stays on this device. A copy goes to your company’s Google service in the EU. Pete transcribes it and fills clear details automatically; you can review or correct them anytime.' : 'The original stays on this device. Transcription is not configured on this platform.'} Leaving the app stops and attempts to save the recording; keep the app open until saving finishes.</Txt>
   </>;
 }

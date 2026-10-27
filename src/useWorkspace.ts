@@ -35,8 +35,14 @@ export function useWorkspace() {
       if (!alive) return repository.close();
       repo.current = repository; setDrafts(records); setJobs(tasks); setPreferences(prefs); setActiveDraftId(records.some(d => d.id === selected) ? selected : undefined); setLoading(false);
       currentRunner = startProcessing(repository, createProcessor(), async () => {
-        const tasks = await repository.jobs();
-        if (alive) setJobs(tasks);
+        const [tasks, records] = await Promise.all([repository.jobs(), repository.list()]);
+        if (alive) {
+          setJobs(tasks);
+          setDrafts(previous => [...previous.filter(d => !records.some(record => record.id === d.id)), ...records.map(record => {
+            const newer = previous.find(d => d.id === record.id);
+            return newer && newer.revision > record.revision ? newer : record;
+          })].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)));
+        }
       }, message => { if (alive) setProcessingError(message ? 'Background processing is paused. You can keep capturing; Pete will retry.' : ''); }, Crypto.randomUUID);
       runner.current = currentRunner;
     }).catch(error => { if (alive) { setError(error instanceof Error ? error.message : 'Local storage is unavailable.'); setLoading(false); } });

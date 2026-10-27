@@ -1,3 +1,4 @@
+import type { detailService } from './details';
 import { createHash } from 'node:crypto';
 import type { HostedJob } from './hosted-jobs';
 import { ApiError, hostedJobs } from './hosted-jobs';
@@ -7,7 +8,7 @@ export function ownerOf(identity: Identity) {
   if (!identity.email_verified || !identity.email?.toLowerCase().endsWith('@bevmaq.com') || !identity.uid) throw new ApiError('Use a verified BEVMAQ email account.', 403);
   return createHash('sha256').update(identity.uid).digest('hex');
 }
-export function hostedHandler(jobs: ReturnType<typeof hostedJobs>, verify: (token: string) => Promise<Identity>, allowedOrigins: string[], engine: string) {
+export function hostedHandler(jobs: ReturnType<typeof hostedJobs>, verify: (token: string) => Promise<Identity>, allowedOrigins: string[], engine: string, details?: ReturnType<typeof detailService>) {
   return async (request: Request): Promise<Response> => {
     const origin = request.headers.get('Origin') || '';
     const headers = { 'Cache-Control': 'no-store', 'Vary': 'Origin', ...(allowedOrigins.includes(origin) ? { 'Access-Control-Allow-Origin': origin } : {}) };
@@ -15,7 +16,7 @@ export function hostedHandler(jobs: ReturnType<typeof hostedJobs>, verify: (toke
     const url = new URL(request.url);
     const path = url.pathname.replace(/^\/api(?=\/)/, '');
     if (request.method === 'OPTIONS') return allowedOrigins.includes(origin) ? new Response(null, { status: 204, headers: { ...headers, 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type, Authorization' } }) : json({ error: 'Forbidden origin.' }, 403);
-    if (path === '/health' && request.method === 'GET') return json({ ready: true, authentication: 'required', engine });
+    if (path === '/health' && request.method === 'GET') return json({ ready: true, authentication: 'required', engine, automaticFilling: !!details });
     if (origin && !allowedOrigins.includes(origin)) return json({ error: 'Forbidden origin.' }, 403);
     try {
       const token = request.headers.get('Authorization')?.match(/^Bearer (\S+)$/)?.[1];
@@ -23,6 +24,19 @@ export function hostedHandler(jobs: ReturnType<typeof hostedJobs>, verify: (toke
       let identity: Identity;
       try { identity = await verify(token); } catch { throw new ApiError('Your session expired. Sign in again.', 401); }
       const owner = ownerOf(identity);
+      const extractionRoute = path.match(/^\/extractions\/([a-f0-9]{64})$/);
+      if (extractionRoute) {
+        if (request.method !== 'POST') throw new ApiError('Method not allowed.', 405);
+        if (!allowedOrigins.includes(origin)) throw new ApiError('A valid app origin is required.', 403);
+        if (!details) throw new ApiError('Automatic filling is temporarily unavailable. Your source stays saved.', 503);
+        const raw = await request.text();
+        if (raw.length > 310_000) throw new ApiError('Request too large.', 413);
+        let body;
+        try { body = JSON.parse(raw); } catch { throw new ApiError('Invalid extraction request.'); }
+        if (!body || typeof body !== 'object' || Array.isArray(body)) throw new ApiError('Invalid extraction request.');
+        const result = await details.extract(owner, extractionRoute[1], body.kind, body.text);
+        return json(result, result.state === 'complete' ? 200 : 202);
+      }
       const route = path.match(/^\/transcriptions\/([a-f0-9]{64})(?:\/(upload|submit))?$/);
       if (!route) throw new ApiError('Not found.', 404);
       const [, id, action] = route;

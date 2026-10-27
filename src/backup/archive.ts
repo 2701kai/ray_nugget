@@ -1,5 +1,6 @@
 import { mediaLimit, type Attachment, type Contact, type Draft } from '../domain/draft';
-import { NEVER, newJob, type Extraction, type ProcessingJob } from '../processing/jobs';
+import { detailKeys, requestFields } from '../domain/details';
+import { NEVER, newJob, validateExtraction, type Extraction, type ProcessingJob } from '../processing/jobs';
 
 export const MAX_BACKUP_BYTES = 128 * 1024 * 1024;
 const MAX_MANIFEST_BYTES = 4 * 1024 * 1024;
@@ -58,7 +59,21 @@ function extraction(value: unknown): Extraction {
   for (const field of Object.keys(fields)) parsed[oneOf(field, contactKeys)] = string(fields[field]);
   const engine = string(raw.engine, 100);
   if (!engine) throw invalid();
-  return { text: string(raw.text, 50_000), engine, fields: parsed };
+  const result: Extraction = { text: string(raw.text, 50_000), engine, fields: parsed };
+  if (raw.request !== undefined) {
+    const request = object(raw.request);
+    result.request = {};
+    for (const field of ['intent', 'product', 'packaging'] as const) if (request[field] !== undefined) Object.assign(result.request, { [field]: string(request[field]) });
+    if (request.capacity !== undefined) {
+      const capacity = object(request.capacity);
+      result.request.capacity = { throughput: string(capacity.throughput), unit: oneOf(capacity.unit, ['units/h', 'bottles/h', 'L/h']) };
+    }
+    requestFields(result.request);
+  }
+  if (raw.evidence !== undefined) result.evidence = Object.fromEntries(Object.entries(object(raw.evidence)).map(([key, value]) => [oneOf(key, detailKeys), string(value, 1000)]));
+  if (raw.questions !== undefined) result.questions = array(raw.questions, 6).map(value => string(value, 300));
+  validateExtraction(result);
+  return result;
 }
 
 // Construct only known fields. File contents never become settings, credentials,

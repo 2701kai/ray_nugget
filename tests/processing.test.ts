@@ -36,7 +36,7 @@ test('one tab owns a job; expired owners cannot finish or renew after a restart'
   expect(await other.renewJob(job.id, job.leaseId!, now + LEASE_MS + 2)).toBe(false);
   expect(await other.finishJob(job.id, 'resumed', result, now + LEASE_MS + 2)).toBe(true);
   expect(await other.claimJob(['card'], 'duplicate', now + LEASE_MS + 3)).toBeUndefined();
-  expect((await other.list())[0].contact.email).toBe('');
+  expect((await other.list())[0].contact.email).toBe('hello@example.test');
   await other.close();
 });
 
@@ -176,4 +176,38 @@ test('unrelated database failures are surfaced without applying the index workar
     expect(reads).toBe(1);
     expect((await repo.jobs())[0]).toMatchObject({ state: 'queued', attempts: 0 });
   } finally { IDBIndex.prototype.get = original; await repo.close(); }
+});
+
+test('automatic completion fills its source visitor without forms, keeps corrections, and remains reviewable after reopen', async () => {
+  const { repo, name } = await setup();
+  const voice: Attachment = { ...card, id: 'voice', kind: 'voice', sha256: new Bun.CryptoHasher('sha256').update(new Uint8Array([1, 2, 3])).digest('hex'), mimeType: 'audio/webm' };
+  await repo.update('visitor-a', { type: 'attach', attachment: voice }, undefined, new Uint8Array([1, 2, 3]));
+  await repo.update('visitor-a', { type: 'edit', patch: { contact: { phone: '' }, request: { product: 'Corrected product' } } });
+  await repo.create(createDraft('visitor-b', 'voice', '', card.capturedAt), true);
+  const job = (await repo.claimJob(['voice'], 'worker'))!;
+  const extraction = { ...result, fields: { name: 'Mara Lind', phone: '+12025550182' }, request: { product: 'juice', packaging: 'glass bottles', capacity: { throughput: '2400', unit: 'bottles/h' as const } }, evidence: { 'contact.name': 'Mara Lind' }, questions: ['Which phone should we use?'] };
+  await repo.saveJobSource(job.id, 'worker', { ...result, fields: {} });
+  await repo.failJob(job.id, 'worker', 'temporary extraction outage');
+  await repo.retryJob(job.id);
+  const retried = (await repo.claimJob(['voice'], 'retry'))!;
+  expect(retried.result?.text).toBe(result.text);
+  expect(await repo.saveJobSource(job.id, 'worker', result)).toBe(false);
+  expect(await repo.finishJob(job.id, 'retry', extraction)).toBe(true);
+  expect(await repo.finishJob(job.id, 'retry', extraction)).toBe(false);
+  await repo.close(); const reopened = await openRepository(name);
+  const draft = (await reopened.list()).find(d => d.id === 'visitor-a')!;
+  expect(draft.contact).toMatchObject({ name: 'Mara Lind', phone: '' });
+  expect(draft.request).toMatchObject({ product: 'Corrected product', packaging: 'glass bottles', throughput: '2400', unit: 'bottles/h' });
+  expect(draft.appliedJobs).toEqual([]);
+  expect(draft.provenance['contact.name']).toMatchObject({ jobId: job.id, attachmentId: 'voice' });
+  expect((await reopened.list()).find(d => d.id === 'visitor-b')!.contact.name).toBe('');
+  const reviewed = await reopened.reviewJob(job.id, { phone: '+12025550182' }, draft.revision);
+  expect(reviewed.contact.phone).toBe('+12025550182');
+  const { encodeBackup, decodeBackup } = await import('../src/backup/archive');
+  const digest = async (bytes: Uint8Array) => new Bun.CryptoHasher('sha256').update(bytes).digest('hex');
+  const snapshot = await reopened.snapshot(draft.id);
+  snapshot.draft.attachments[0].sha256 = await digest(new Uint8Array([1, 2, 3]));
+  const backup = await decodeBackup(new Uint8Array(Buffer.concat(await encodeBackup(snapshot, digest))), digest);
+  expect(backup.jobs.find(j => j.id.endsWith('/voice'))?.result).toEqual(extraction);
+  await reopened.close();
 });

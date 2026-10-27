@@ -45,14 +45,14 @@ function WorkspaceScreen() {
   const disabled = workspace.loading || !!workspace.error || busy;
   const list = workspace.drafts.filter(record => `${record.contact.name} ${record.contact.company} ${record.event} ${record.request.product}`.toLowerCase().includes(query.toLowerCase()));
 
-  async function start(kind: CaptureKind | 'note' | 'conversation', forceNew = false) {
+  async function start(kind: CaptureKind | 'note' | 'conversation' | 'visitor', forceNew = false) {
     if (changing.current || disabled) return;
     changing.current = true; setBusy(true); setError(''); setNotice('');
     try {
-      const entry: CaptureKind = kind === 'conversation' ? 'voice' : kind === 'note' ? 'contact' : kind;
+      const entry: CaptureKind = kind === 'conversation' ? 'voice' : kind === 'note' || kind === 'visitor' ? 'contact' : kind;
       const target = forceNew || !draft || library ? await workspace.create(entry) : draft;
       setShowLibrary(false); setSection('conversation');
-      setPanel({ kind, draftId: target.id });
+      setPanel(kind === 'visitor' ? null : { kind, draftId: target.id });
     } catch (e) { setError(e instanceof Error ? e.message : 'Could not open the conversation.'); }
     finally { changing.current = false; setBusy(false); }
   }
@@ -81,7 +81,7 @@ function WorkspaceScreen() {
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
         {desktop && pwa.installable && <Button label="Install Pete" kind="quiet" icon="download" onPress={() => { void pwa.install(); }} />}
         {desktop ? <Button label="Your details" icon="settings" kind="quiet" onPress={() => setPanel({ kind: 'settings' })} /> : <Pressable accessibilityRole="button" accessibilityLabel="Settings" onPress={() => setPanel({ kind: 'settings' })} style={{ minWidth: 76, minHeight: 56, alignItems: 'center', justifyContent: 'center' }}><Icon name="settings" /><Txt weight="bold" style={{ fontSize: 16, lineHeight: 24 }}>Settings</Txt></Pressable>}
-        <Button label="New visitor" icon="plus" kind="secondary" disabled={disabled} onPress={() => start('contact', true)} style={{ paddingHorizontal: 12 }} />
+        <Button label="New visitor" icon="plus" kind="secondary" disabled={disabled} onPress={() => start('visitor', true)} style={{ paddingHorizontal: 12 }} />
       </View>
     </View>
     {!pwa.online && <View style={styles.banner}><Txt style={{ fontSize: 16, color: colors.green }}>Offline · capture continues on this device. Processing resumes when connected.</Txt></View>}
@@ -95,11 +95,13 @@ function WorkspaceScreen() {
         <View style={{ gap: 8 }}><Eyebrow>YOUR FIELD WORKSPACE</Eyebrow><Txt weight="bold" style={{ fontSize: 30, lineHeight: 38, letterSpacing: -1 }}>Every visitor. One conversation.</Txt><Txt style={{ color: colors.muted }}>Open a draft to pick up where you left off, or start with what you have.</Txt></View>
         <View style={{ gap: 10 }}>
           <Button label="Capture a voice note" icon="mic" disabled={disabled} onPress={() => start('voice', true)} />
-          <View style={{ flexDirection: 'row', gap: 10 }}><Button label="Capture business card" icon="camera" kind="secondary" disabled={disabled} onPress={() => start('card', true)} style={{ flex: 1 }} /><Button label="Capture contact" icon="contact" kind="secondary" disabled={disabled} onPress={() => start('contact', true)} style={{ flex: 1 }} /></View>
-          <Button label="Capture request" icon="request" kind="quiet" disabled={disabled} onPress={() => start('request', true)} />
+          <Button label="Capture business card" icon="camera" kind="secondary" disabled={disabled} onPress={() => start('card', true)} />
+          <Txt style={{ fontSize: 18, color: colors.muted }}>Speak or photograph a card. Pete fills the details for you.</Txt>
+          <Txt style={{ fontSize: 16, color: colors.muted, marginTop: 8 }}>Prefer to type? These options are optional.</Txt>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}><Button label="Capture contact" icon="contact" kind="quiet" disabled={disabled} onPress={() => start('contact', true)} /><Button label="Capture request" icon="request" kind="quiet" disabled={disabled} onPress={() => start('request', true)} /></View>
         </View>
         {!desktop && <><Field label="Find a draft" placeholder="Name, company, event…" value={query} onChangeText={setQuery} /><View style={{ gap: 10 }}>{list.map(renderRow)}</View></>}
-        {!list.length && <View style={{ paddingVertical: 20, gap: 8 }}><Icon name="folder" color={colors.muted} /><Txt weight="semibold">{query ? 'No matching conversations.' : 'Your first connection starts here.'}</Txt><Txt style={{ color: colors.muted, fontSize: 16 }}>Voice, card, contact, or request—all four can start a draft.</Txt></View>}
+        {!list.length && <View style={{ paddingVertical: 20, gap: 8 }}><Icon name="folder" color={colors.muted} /><Txt weight="semibold">{query ? 'No matching conversations.' : 'Your first connection starts here.'}</Txt><Txt style={{ color: colors.muted, fontSize: 16 }}>Start with a voice note or card photo. No typing needed.</Txt></View>}
         <Txt style={{ color: colors.muted, fontSize: 16 }}>{pwa.offlineReady ? 'Pete is ready to reopen offline.' : 'Saved drafts and original captures stay on this device.'}</Txt>
         <Button label="Restore a backup" kind="quiet" disabled={disabled} onPress={() => setPanel({ kind: 'restore' })} />
       </ScrollView> : <View style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
