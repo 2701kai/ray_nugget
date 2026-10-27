@@ -7,6 +7,9 @@ export type Request = {
   throughput: string;
   unit: '' | 'units/h' | 'bottles/h' | 'L/h';
 };
+export type RequestReview = Partial<Pick<Request, 'product' | 'packaging'>> & {
+  capacity?: Pick<Request, 'throughput' | 'unit'>;
+};
 export type Attachment = {
   id: string;
   kind: 'card' | 'voice';
@@ -51,7 +54,7 @@ export type DraftAction =
   | { type: 'addNote'; id: string; text: string }
   | { type: 'attach'; attachment: Attachment }
   | { type: 'enrich'; jobId: string; attachmentId: string; fields: Partial<Contact> }
-  | { type: 'reviewExtraction'; jobId: string; attachmentId: string; fields: Partial<Contact>; transcript?: string }
+  | { type: 'reviewExtraction'; jobId: string; attachmentId: string; fields: Partial<Contact>; request?: RequestReview; transcript?: string }
   | { type: 'followup'; sender: Sender; operationId: string };
 
 export const MAX_MEDIA_BYTES = 15 * 1024 * 1024;
@@ -156,6 +159,17 @@ export function reduceDraft(draft: Draft, action: DraftAction, now: string): Dra
       if (!Object.hasOwn(next.contact, field) || typeof value !== 'string' || value.length > 2000) throw new Error('Invalid reviewed contact field.');
       next.contact[field as keyof Contact] = value.trim();
       next.provenance[`contact.${field}`] = { source: 'extraction', at: now, reviewedAt: now, attachmentId: action.attachmentId, jobId: action.jobId };
+    }
+    if (action.request) {
+      if (Object.keys(action.request).some(key => !['product', 'packaging', 'capacity'].includes(key))) throw new Error('Invalid reviewed request field.');
+      const { capacity, ...details } = action.request;
+      if (capacity && (typeof capacity.throughput !== 'string' || capacity.throughput.length > 2000 || !/^\d+(?:[.,]\d+)?$/.test(capacity.throughput.trim()) || !Number.isFinite(Number(capacity.throughput.replace(',', '.'))) || Number(capacity.throughput.replace(',', '.')) <= 0 || !['units/h', 'bottles/h', 'L/h'].includes(capacity.unit))) throw new Error('Use a positive throughput and select its unit.');
+      const fields = { ...details, ...(capacity ? { throughput: capacity.throughput, unit: capacity.unit } : {}) };
+      for (const [field, value] of Object.entries(fields)) {
+        if (typeof value !== 'string' || value.length > 2000) throw new Error('Invalid reviewed request field.');
+        Object.assign(next.request, { [field]: value.trim() });
+        next.provenance[`request.${field}`] = { source: 'extraction', at: now, reviewedAt: now, attachmentId: action.attachmentId, jobId: action.jobId };
+      }
     }
     if (action.transcript) {
       const note = [next.note, action.transcript].filter(Boolean).join('\n\n');

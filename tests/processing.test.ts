@@ -86,6 +86,34 @@ test('version-one database upgrades without losing original media or drafts', as
   await repo.close();
 });
 
+test('RFQ review commits selected fields and source provenance atomically to its original visitor', async () => {
+  const { repo, name } = await setup();
+  const voice: Attachment = { ...card, id: 'voice', kind: 'voice', sha256: 'voice-synthetic', mimeType: 'audio/webm' };
+  await repo.update('visitor-a', { type: 'attach', attachment: voice }, undefined, new Uint8Array([1, 2, 3]));
+  await repo.create(createDraft('visitor-b', 'contact', '', card.capturedAt), true);
+  const job = (await repo.claimJob(['voice'], 'worker', Date.now() + 100))!;
+  // This is the old stored extraction shape: no migration or repeat cloud work.
+  await repo.finishJob(job.id, 'worker', { ...result, text: 'We need juice in glass bottles at 2400 bottles/h.' });
+  let draft = (await repo.list()).find(d => d.id === 'visitor-a')!;
+  const stale = draft.revision;
+  draft = await repo.update(draft.id, { type: 'edit', patch: { request: { product: 'Manual product', packaging: '' } } });
+  const options = { request: { capacity: { throughput: '2400', unit: 'bottles/h' as const } }, appendTranscript: true };
+  await expect(repo.reviewJob(job.id, {}, stale, options)).rejects.toThrow('changed while');
+  await expect(repo.reviewJob(job.id, {}, draft.revision, { request: { product: 'Must not partially save', capacity: { throughput: '0', unit: '' } } })).rejects.toThrow('positive throughput');
+  expect((await repo.jobs()).find(j => j.id === job.id)?.reviewedAt).toBeUndefined();
+  expect((await repo.list()).find(d => d.id === draft.id)?.request.product).toBe('Manual product');
+  const reviewed = await repo.reviewJob(job.id, {}, draft.revision, options);
+  expect(reviewed.request).toMatchObject({ product: 'Manual product', packaging: '', throughput: '2400', unit: 'bottles/h', intent: 'unspecified' });
+  expect(reviewed.note).toBe('We need juice in glass bottles at 2400 bottles/h.');
+  expect((await repo.list()).find(d => d.id === 'visitor-b')?.request.throughput).toBe('');
+  expect(await repo.activeDraft()).toBe('visitor-b');
+  expect((await repo.reviewJob(job.id, {}, stale, options)).revision).toBe(reviewed.revision);
+  await repo.close();
+  const reopened = await openRepository(name);
+  expect((await reopened.list()).find(d => d.id === draft.id)?.provenance['request.throughput']).toMatchObject({ attachmentId: voice.id, jobId: job.id, source: 'extraction' });
+  await reopened.close();
+});
+
 test('candidate extraction keeps ambiguous contact values in the text and does not invent country codes', () => {
   expect(contactCandidates('Name: Synthetic Visitor\nFirma: Test GmbH\nhello@example.test\n+1 202 555 0182')).toEqual({ name: 'Synthetic Visitor', company: 'Test GmbH', email: 'hello@example.test', phone: '+12025550182' });
   expect(contactCandidates('0171 5550101\na@example.test\nb@example.test')).toEqual({});

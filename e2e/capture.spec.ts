@@ -119,6 +119,7 @@ test('conversation consent and microphone denial do not produce a saved recordin
   await expect(page.getByText('Up to 30 minutes. Stop and save when you are done.', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Start recording', exact: true })).toBeDisabled();
   await page.getByRole('checkbox', { name: 'The other person agreed to this recording', exact: true }).click();
+  await expect(page.getByRole('checkbox', { name: 'The other person agreed to this recording', exact: true })).toBeChecked();
   await page.getByRole('button', { name: 'Start recording', exact: true }).click();
   await expect(page.getByText(/Microphone access is off/)).toBeVisible();
   await page.getByRole('button', { name: 'Close', exact: true }).click();
@@ -167,9 +168,51 @@ test('a returned transcript is reviewed before being appended to conversation no
   await expect(page.getByRole('button', { name: 'Review extracted text', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Review extracted text', exact: true }).click();
   await page.getByRole('checkbox', { name: 'Append transcript to conversation notes', exact: true }).click();
+  await expect(page.getByRole('checkbox', { name: 'Use container / packaging', exact: true })).toBeChecked();
+  await expect(page.getByRole('checkbox', { name: 'Use throughput and unit', exact: true })).toBeChecked();
   await page.getByRole('button', { name: 'Apply selected details', exact: true }).click();
   await page.getByRole('button', { name: 'Edit request', exact: true }).click();
   await expect(page.getByLabel('Conversation notes', { exact: true })).toHaveValue('Synthetic conversation. We need glass bottles at 2400 bottles per hour.');
+});
+
+test('mobile RFQ review protects corrected and cleared fields while applying selected source details', async ({ page }) => {
+  const transcript = 'We need to fill juice into glass bottles at 2400 bottles per hour.';
+  await page.route('http://127.0.0.1:8091/**', route => route.fulfill({ json: { state: 'complete', text: transcript, engine: 'Synthetic browser test processor' }, headers: { 'Access-Control-Allow-Origin': route.request().headers().origin } }));
+  await page.setViewportSize({ width: 390, height: 844 });
+  await open(page);
+  await page.getByRole('button', { name: 'Capture contact', exact: true }).click();
+  await contact(page, 'RFQ visitor');
+  await page.getByRole('button', { name: 'Details & request', exact: true }).click();
+  await page.getByRole('button', { name: 'Edit request', exact: true }).click();
+  await page.getByLabel('Product to fill', { exact: true }).fill('Manually corrected juice');
+  await page.getByLabel('Container / packaging', { exact: true }).fill('');
+  await page.getByRole('button', { name: 'Save request', exact: true }).click();
+  await page.getByRole('button', { name: 'Conversation', exact: true }).click();
+  await page.getByRole('button', { name: 'Capture a voice note', exact: true }).click();
+  await expect(page.getByText(/^00:0[1-3]$/)).toBeVisible();
+  await page.getByRole('button', { name: 'Stop and save recording', exact: true }).click();
+  await page.getByRole('button', { name: 'Review extracted text', exact: true }).click();
+  await expect(page.getByLabel('Product to fill', { exact: true })).toHaveValue('juice');
+  await expect(page.getByRole('checkbox', { name: 'Use product', exact: true })).not.toBeChecked();
+  await expect(page.getByRole('checkbox', { name: 'Use container / packaging', exact: true })).not.toBeChecked();
+  await expect(page.getByRole('checkbox', { name: 'Use throughput and unit', exact: true })).not.toBeChecked();
+  await expect(page.getByText('Currently: Manually corrected juice', { exact: true })).toBeVisible();
+  await page.getByLabel('Container / packaging', { exact: true }).fill('500 ml glass bottles');
+  await expect(page.getByRole('checkbox', { name: 'Use container / packaging', exact: true })).toBeChecked();
+  await page.getByRole('checkbox', { name: 'Use throughput and unit', exact: true }).click();
+  await page.getByLabel('Required throughput', { exact: true }).scrollIntoViewIfNeeded();
+  await expect(page.getByLabel('Required throughput', { exact: true })).toHaveValue('2400');
+  await expect(page.getByRole('radio', { name: 'Bottles / hour', exact: true })).toBeChecked();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: test.info().outputPath('rfq-review-mobile.png'), animations: 'disabled' });
+  await page.getByRole('button', { name: 'Apply selected details', exact: true }).click();
+  await expect(page.getByText('Reviewed · source text kept', { exact: true })).toBeVisible();
+  await page.reload();
+  await page.getByRole('button', { name: 'Details & request', exact: true }).click();
+  await expect(page.getByText('Manually corrected juice', { exact: true })).toBeVisible();
+  await expect(page.getByText('500 ml glass bottles', { exact: true })).toBeVisible();
+  await expect(page.getByText('2400 bottles/h', { exact: true })).toBeVisible();
+  await expect(page.getByText('Filling requirements captured', { exact: true })).toBeVisible();
 });
 
 test('late transcription stays with its original visitor while another conversation is active', async ({ page }) => {

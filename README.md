@@ -187,6 +187,13 @@ of automatically submitting a duplicate. That case needs an operation check.
 - Source text and suggested contact fields stay separate until reviewed. Existing
   or manually cleared details are unselected by default; applying a review checks
   the draft revision. Transcripts can be copied or explicitly appended to notes.
+- Voice review also suggests RFQ product, container, and throughput with its unit.
+  Each suggestion shows its source phrase and can be corrected or deselected.
+  A local English/German parser recognizes labelled fields, common beverage and
+  packaging terms, and explicit hourly rates. Conflicting matches, recognized
+  negations, estimates, and ranges remain in the transcript for manual review.
+  It does not infer buyer/seller intent, missing units, or convert per-minute rates.
+  Previously saved, unreviewed transcripts work without another cloud request.
 - A dated German WhatsApp introduction preview with salesperson details and
   recipient checks. Correcting contact details marks an existing preview outdated.
   Copying a preview is supported; opening WhatsApp and sending are not connected.
@@ -203,8 +210,9 @@ clearing site data or uninstalling the app removes local records. A move
 from localhost to `pete.bevmaq.com` uses a different browser database.
 The development preview needs the server to reopen; the production PWA can reopen
 offline after its first successful cache installation. Keep recording open until
-saving finishes. Automatic structured RFQ extraction is still pending; today the
-transcript is reviewable and the request fields are editable manually.
+saving finishes. RFQ suggestions use limited text patterns, not a general language
+model; unrecognized phrasing and transcription errors still require manual review.
+Selecting throughput always applies its amount and unit together.
 
 ## Verification
 

@@ -1,9 +1,10 @@
-import { checkRevision, reduceDraft, type Attachment, type Contact, type Draft } from '../domain/draft';
+import { checkRevision, reduceDraft, type Attachment, type Contact, type Draft, type RequestReview } from '../domain/draft';
 
 export const LEASE_MS = 30_000;
 export const MAX_ATTEMPTS = 3;
 export const NEVER = Number.MAX_SAFE_INTEGER;
 export type Extraction = { text: string; fields: Partial<Contact>; engine: string };
+export type ReviewOptions = { appendTranscript?: boolean; request?: RequestReview };
 export type ProcessingJob = {
   id: string; draftId: string; attachmentId: string; kind: Attachment['kind'];
   state: 'queued' | 'running' | 'failed' | 'complete';
@@ -80,14 +81,15 @@ export function processingRepository(driver: JobDriver) {
         await tx.putJob({ ...job, state: 'queued', attempts: 0, readyAt: now, leaseId: undefined, error: undefined, updatedAt: now });
       });
     },
-    reviewJob(id: string, fields: Partial<Contact>, revision: number, appendTranscript = false, now = Date.now()) {
+    reviewJob(id: string, fields: Partial<Contact>, revision: number, options: ReviewOptions = {}, now = Date.now()) {
       return driver.atomic(async tx => {
         const job = await tx.job(id);
         if (!job?.result || job.state !== 'complete') throw new Error('There is no result to review yet.');
         const draft = await tx.draft(job.draftId);
         if (job.reviewedAt !== undefined && draft) return draft;
         checkRevision(draft, revision);
-        const next = reduceDraft(draft, { type: 'reviewExtraction', jobId: job.id, attachmentId: job.attachmentId, fields, transcript: appendTranscript && job.kind === 'voice' ? job.result.text : undefined }, new Date(now).toISOString());
+        if (options.request && job.kind !== 'voice') throw new Error('Request review needs a voice transcript.');
+        const next = reduceDraft(draft, { type: 'reviewExtraction', jobId: job.id, attachmentId: job.attachmentId, fields, request: options.request, transcript: options.appendTranscript && job.kind === 'voice' ? job.result.text : undefined }, new Date(now).toISOString());
         await tx.putDraft(next);
         await tx.putJob({ ...job, reviewedAt: now, updatedAt: now });
         return next;

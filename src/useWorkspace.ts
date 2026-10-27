@@ -7,7 +7,7 @@ import { defaultPreferences, type DraftRepository, type Preferences } from './st
 import { readUri } from './media/files';
 import { createProcessor, supportedKinds } from './processing/processor';
 import { startProcessing } from './processing/runner';
-import type { ProcessingJob } from './processing/jobs';
+import type { ProcessingJob, ReviewOptions } from './processing/jobs';
 import type { Contact } from './domain/draft';
 import { storageName } from './session';
 
@@ -71,8 +71,8 @@ export function useWorkspace() {
   async function getMedia(draftId: string, attachmentId: string) { return repository().media(draftId, attachmentId); }
   async function activateDraft(id?: string) { await repository().activateDraft(id); setActiveDraftId(id); }
   async function retryJob(id: string) { await repository().retryJob(id); setJobs(await repository().jobs()); runner.current?.wake(); }
-  async function reviewJob(id: string, fields: Partial<Contact>, revision: number, appendTranscript = false) {
-    const draft = await repository().reviewJob(id, fields, revision, appendTranscript); merge(draft); setJobs(await repository().jobs());
+  async function reviewJob(id: string, fields: Partial<Contact>, revision: number, options: ReviewOptions = {}) {
+    const draft = await repository().reviewJob(id, fields, revision, options); merge(draft); setJobs(await repository().jobs());
   }
   return { drafts, activeDraftId, activateDraft, jobs, supportedKinds, preferences, loading, error, retry: () => setGeneration(g => g + 1), create, update, attach, savePreferences, getMedia, retryJob, reviewJob };
 }

@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
-import type { Contact, Draft } from '../domain/draft';
+import type { Contact, Draft, RequestReview } from '../domain/draft';
 import type { ProcessingJob } from '../processing/jobs';
+import { requestCandidates } from '../processing/request';
 import type { Workspace } from '../useWorkspace';
-import { Button, ErrorNotice, Field, Sheet, Txt } from './primitives';
+import { Button, Choice, ErrorNotice, Field, Sheet, Txt } from './primitives';
 import { Icon } from './Icon';
 import { colors } from './theme';
 
@@ -16,6 +17,16 @@ export function ExtractionReview({ job, draft, workspace, close }: { job: Proces
   const [selected, setSelected] = useState<Partial<Record<keyof Contact, boolean>>>(() => Object.fromEntries(
     (Object.keys(labels) as Array<keyof Contact>).map(field => [field, !!job.result?.fields[field] && !draft.contact[field] && !draft.provenance[`contact.${field}`]]),
   ));
+  const [candidates] = useState(() => job.kind === 'voice' ? requestCandidates(job.result?.text ?? '') : {});
+  const [request, setRequest] = useState(() => ({ ...draft.request,
+    product: candidates.product?.value ?? draft.request.product,
+    packaging: candidates.packaging?.value ?? draft.request.packaging,
+    ...(candidates.capacity?.value ?? {}),
+  }));
+  const [requestSelected, setRequestSelected] = useState<Record<'product' | 'packaging' | 'capacity', boolean>>(() => {
+    const untouched = (field: 'product' | 'packaging' | 'throughput' | 'unit') => !draft.request[field] && !draft.provenance[`request.${field}`];
+    return { product: !!candidates.product && untouched('product'), packaging: !!candidates.packaging && untouched('packaging'), capacity: !!candidates.capacity && untouched('throughput') && untouched('unit') };
+  });
   const [append, setAppend] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -25,7 +36,13 @@ export function ExtractionReview({ job, draft, workspace, close }: { job: Proces
     setBusy(true); setError('');
     try {
       const fields = apply ? Object.fromEntries((Object.keys(labels) as Array<keyof Contact>).filter(field => selected[field]).map(field => [field, values[field]])) : {};
-      await workspace.reviewJob(job.id, fields, revision, apply && append); close();
+      const reviewedRequest: RequestReview = {};
+      if (apply && job.kind === 'voice') {
+        if (requestSelected.product) reviewedRequest.product = request.product;
+        if (requestSelected.packaging) reviewedRequest.packaging = request.packaging;
+        if (requestSelected.capacity) reviewedRequest.capacity = { throughput: request.throughput, unit: request.unit };
+      }
+      await workspace.reviewJob(job.id, fields, revision, { appendTranscript: apply && append, request: Object.keys(reviewedRequest).length ? reviewedRequest : undefined }); close();
     } catch (e) { setError(e instanceof Error ? e.message : 'Could not save the review.'); }
     finally { setBusy(false); }
   }
@@ -43,16 +60,34 @@ export function ExtractionReview({ job, draft, workspace, close }: { job: Proces
         <Check label={`Use ${labels[field].toLowerCase()}`} checked={!!selected[field]} onPress={() => setSelected({ ...selected, [field]: !selected[field] })} />
         <Field label={labels[field]} value={values[field]} onChangeText={value => { setValues({ ...values, [field]: value }); setSelected({ ...selected, [field]: true }); }} helper={draft.contact[field] ? `Currently: ${draft.contact[field]}` : undefined} />
       </View>)}
+      {job.kind === 'voice' && <View style={{ gap: 18, borderTopWidth: 1, borderColor: colors.line, paddingTop: 16 }}>
+        <View style={{ gap: 4 }}><Txt weight="bold">Filling request</Txt><Txt style={{ color: colors.muted, fontSize: 12 }}>Check these details against the conversation. Missing or unclear information can be added manually.</Txt></View>
+        {(['product', 'packaging'] as const).map(field => <View key={field} style={{ gap: 8 }}>
+          <Check label={field === 'product' ? 'Use product' : 'Use container / packaging'} checked={requestSelected[field]} onPress={() => setRequestSelected({ ...requestSelected, [field]: !requestSelected[field] })} />
+          <Field label={field === 'product' ? 'Product to fill' : 'Container / packaging'} value={request[field]} onChangeText={value => { setRequest({ ...request, [field]: value }); setRequestSelected({ ...requestSelected, [field]: true }); }} helper={draft.request[field] ? `Currently: ${draft.request[field]}` : draft.provenance[`request.${field}`] ? 'Previously cleared. Select explicitly to replace.' : undefined} />
+          <Evidence text={candidates[field]?.evidence} />
+        </View>)}
+        <View style={{ gap: 8 }}>
+          <Check label="Use throughput and unit" checked={requestSelected.capacity} onPress={() => setRequestSelected({ ...requestSelected, capacity: !requestSelected.capacity })} />
+          <Field label="Required throughput" value={request.throughput} keyboardType="decimal-pad" onChangeText={throughput => { setRequest({ ...request, throughput }); setRequestSelected({ ...requestSelected, capacity: true }); }} helper={draft.request.throughput || draft.request.unit ? `Currently: ${draft.request.throughput || '—'} ${draft.request.unit}` : draft.provenance['request.throughput'] || draft.provenance['request.unit'] ? 'Previously cleared. Select explicitly to replace.' : undefined} />
+          <Choice label="Throughput unit" value={request.unit} options={[{ value: '', label: 'Choose unit' }, { value: 'bottles/h', label: 'Bottles / hour' }, { value: 'units/h', label: 'Units / hour' }, { value: 'L/h', label: 'Litres / hour' }]} onChange={unit => { setRequest({ ...request, unit }); setRequestSelected({ ...requestSelected, capacity: true }); }} />
+          <Evidence text={candidates.capacity?.evidence} />
+        </View>
+      </View>}
       {job.kind === 'voice' && !!job.result?.text && <Check label="Append transcript to conversation notes" checked={append} onPress={() => setAppend(!append)} />}
       <ErrorNotice message={error} />
-      <Button label={busy ? 'Saving review…' : 'Apply selected details'} disabled={busy || (!append && !Object.values(selected).some(Boolean))} icon="check" onPress={() => finish(true)} />
+      <Button label={busy ? 'Saving review…' : 'Apply selected details'} disabled={busy || (!append && !Object.values(selected).some(Boolean) && !Object.values(requestSelected).some(Boolean))} icon="check" onPress={() => finish(true)} />
       <Button label="Keep existing details" disabled={busy} kind="quiet" onPress={() => finish(false)} />
     </>}
   </Sheet>;
 }
 
+function Evidence({ text }: { text?: string }) {
+  return <Txt selectable style={{ fontSize: 11, lineHeight: 17, color: colors.muted }}>{text ? `From transcript: “${text}”` : 'No clear suggestion. Check the transcript.'}</Txt>;
+}
+
 function Check({ label, checked, onPress }: { label: string; checked: boolean; onPress: () => void }) {
-  return <Pressable accessibilityRole="checkbox" accessibilityLabel={label} accessibilityState={{ checked }} onPress={onPress} style={{ flexDirection: 'row', gap: 10, alignItems: 'center', minHeight: 36 }}>
+  return <Pressable accessibilityRole="checkbox" accessibilityLabel={label} accessibilityState={{ checked }} aria-checked={checked} onPress={onPress} style={{ flexDirection: 'row', gap: 10, alignItems: 'center', minHeight: 36 }}>
     <View style={{ width: 22, height: 22, borderWidth: 1, borderColor: colors.green, borderRadius: 5, backgroundColor: checked ? colors.green : colors.paper }}>{checked && <Icon name="check" size={20} color={colors.paper} />}</View><Txt style={{ flex: 1, fontSize: 12 }}>{label}</Txt>
   </Pressable>;
 }
