@@ -1,0 +1,10 @@
+**
+!Dockerfile
+!.dockerignore
+!package.json
+!bun.lock
+!server/
+!server/**
+!src/
+!src/domain/
+!src/domain/**

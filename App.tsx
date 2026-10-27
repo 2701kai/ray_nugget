@@ -19,6 +19,7 @@ import { CardCapture, VoiceCapture } from './src/ui/MediaCapture';
 import { DraftDetail } from './src/ui/DraftDetail';
 import { Conversation } from './src/ui/Conversation';
 import { QuickNote } from './src/ui/QuickNote';
+import { AuthGate } from './src/ui/AuthGate';
 
 type Kind = CaptureKind | 'settings' | 'followup' | 'note' | 'conversation';
 type Panel = { kind: Kind; draftId?: string };
@@ -136,7 +137,7 @@ function CaptureAction({ label, accessibilityLabel, icon, primary, onPress }: { 
 export default function App() {
   const [loaded, error] = useFonts({ Manrope_400Regular, Manrope_500Medium, Manrope_600SemiBold, Manrope_700Bold, Manrope_800ExtraBold });
   if (!loaded && !error) return <View style={{ flex: 1, backgroundColor: colors.background, padding: 36 }}><View style={{ height: 230, backgroundColor: colors.sage, borderRadius: 20 }} /></View>;
-  return <SafeAreaProvider><WorkspaceScreen /></SafeAreaProvider>;
+  return <SafeAreaProvider><AuthGate><WorkspaceScreen /></AuthGate></SafeAreaProvider>;
 }
 
 const styles = StyleSheet.create({

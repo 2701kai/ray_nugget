@@ -1,6 +1,6 @@
 import { resolve, sep } from 'node:path';
 
-const root = resolve('dist');
+const root = resolve(process.env.PETE_WEB_OUTPUT || 'dist');
 if (!(await Bun.file(resolve(root, 'sw.js')).exists())) throw new Error('Run bun run build:web before preview.');
 const server = Bun.serve({
   hostname: '127.0.0.1',

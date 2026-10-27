@@ -1,0 +1,22 @@
+import { initializeApp, applicationDefault } from 'firebase-admin/app';
+import { getAuth } from 'firebase-admin/auth';
+import { initializeFirestore } from 'firebase-admin/firestore';
+import { speechCloud } from './google-speech';
+import { firestoreStore } from './hosted-store';
+import { hostedStorage } from './hosted-storage';
+import { hostedJobs } from './hosted-jobs';
+import { hostedHandler } from './hosted-api';
+
+const project = process.env.PETE_GCP_PROJECT;
+const bucket = process.env.PETE_GCP_BUCKET;
+const origins: string[] = (process.env.PETE_ALLOWED_ORIGINS || '').split(',').filter(Boolean);
+if (!project || !bucket || !origins.length || origins.some(origin => !origin.startsWith('https://'))) throw new Error('Set the hosted project, audio bucket, and exact HTTPS origins.');
+const location = process.env.PETE_GCP_LOCATION || 'eu';
+const model = process.env.PETE_SPEECH_MODEL || 'chirp_3';
+const app = initializeApp({ credential: applicationDefault(), projectId: project });
+const db = initializeFirestore(app, { preferRest: true }, process.env.PETE_FIRESTORE_DATABASE || 'pete');
+const cloud = speechCloud({ project, bucket, location, model, languages: (process.env.PETE_SPEECH_LANGUAGES || 'de-DE,en-US').split(',') });
+const jobs = hostedJobs(firestoreStore(db), cloud, hostedStorage(project, bucket));
+const handler = hostedHandler(jobs, token => getAuth(app).verifyIdToken(token), origins, `Google Speech-to-Text V2 · ${model} · ${location}`);
+Bun.serve({ hostname: '0.0.0.0', port: Number(process.env.PORT || 8080), maxRequestBodySize: 4096, idleTimeout: 120, fetch: handler });
+console.log('Pete hosted API ready. Company authentication is required.');

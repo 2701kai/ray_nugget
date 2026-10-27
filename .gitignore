@@ -43,3 +43,5 @@ Thumbs.db
 /ios/
 *.tsbuildinfo
 /public/ocr/
+/dist-hosted/
+.firebase/

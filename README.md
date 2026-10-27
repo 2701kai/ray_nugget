@@ -4,9 +4,67 @@ A capture workspace for trade fairs and customer visits. Start with a contact,
 business-card photo, voice note, or buyer/seller request, then enrich the same
 editable visitor draft in any order.
 
-The intended production address is **https://pete.bevmaq.com**. Hosting, DNS, and
-deployment are not configured yet. The repository remains `ray_nugget`; the app
-is named Pete.
+The Firebase pilot is at **https://bevmaq-platform.web.app**. The dedicated address
+**https://pete.bevmaq.com** is configured; initial DNS and certificate propagation
+may still be in progress. The repository remains `ray_nugget`; the app is named Pete.
+
+## Hosted pilot
+
+Create a Pete account with your `@bevmaq.com` email and a separate password of at
+least 12 characters, verify the email, and return to Pete. Only verified company
+accounts can open the workspace or use transcription. Sign out in Settings.
+Each account has its own local browser database. Sign in online once and wait for
+the offline shell to be ready before taking the app offline.
+
+Firebase Hosting serves the installable PWA. A Bun service on Cloud Run in
+`europe-west4` verifies Firebase ID tokens and saves processing state in the named
+EU Firestore database `pete`. Audio uploads directly to a private bucket using
+resumable sessions; the service checks its size and SHA-256 before submitting it
+to EU Speech-to-Text V2. Reopening Pete resumes the existing operation. An uncertain
+submission stops for administrator review rather than risking a duplicate.
+Temporary audio is deleted on observed completion/failure, with a one-day bucket
+lifecycle as fallback. Transcripts and job metadata remain in Firestore; automatic
+retention of those records is not configured yet.
+
+Drafts, notes, photos, and original recordings still live **on this device**.
+There is no cross-device draft sync or backup. Localhost, the Firebase address,
+and the custom domain each have separate browser storage; existing drafts do not
+move between them. Use the final custom domain consistently once HTTPS is ready.
+Pilot transcription is capped at 40 new attempts per account and 200 total per UTC
+day, with 60 MiB per recording. Processing needs Pete open and connected to submit
+or collect results; Google's accepted operation can continue while Pete is closed.
+Hosting, storage, compute, and speech use the existing company GCP billing account.
+
+Release targets and non-secret runtime settings are in `deploy/`. Build/release
+the frontend using company Application Default Credentials:
+
+```sh
+bun run build:hosted
+bun run deploy:hosting
+```
+
+The hosted build uses `dist-hosted/`, leaving the localhost build and its data
+alone. Only Firebase's public browser configuration enters the bundle. The release
+script checks the site's associated app before publishing, and sends only static
+assets. Reserved Firebase `/__/` handlers and `/api/` bypass the service worker.
+
+To update the API, build and deploy its container with the dedicated service identity:
+
+```sh
+gcloud builds submit . --project=bevmaq-platform --region=europe-west4 \
+  --tag=europe-west4-docker.pkg.dev/bevmaq-platform/pete/api:release
+gcloud run deploy pete-api --project=bevmaq-platform --region=europe-west4 \
+  --image=europe-west4-docker.pkg.dev/bevmaq-platform/pete/api:release \
+  --service-account=pete-api@bevmaq-platform.iam.gserviceaccount.com \
+  --env-vars-file=deploy/cloud-run.env.yaml --memory=512Mi --cpu=1 \
+  --min-instances=0 --max-instances=3 --concurrency=40 --timeout=300 \
+  --allow-unauthenticated
+```
+
+Cloud Run allows HTTP invocation so Hosting can proxy requests; the application
+requires a verified company Firebase token for every processing route. No service
+account key is deployed. Build-upload allowlists exclude local documents,
+credentials, recordings, browser captures, and unrelated repository contents.
 
 ## Run locally
 
@@ -32,7 +90,7 @@ Stop the development server first; both commands use http://localhost:8081 so
 existing drafts remain available. Chromium offers installation in its browser menu
 and Pete's Settings when supported. On iPhone, use Safari's Share menu → Add to
 Home Screen. A real phone needs a reachable HTTPS host; localhost on the phone
-refers to the phone itself. Public hosting is not configured yet.
+refers to the phone itself. Use the hosted HTTPS pilot for a real phone.
 
 The first successful online load caches the application shell. Settings confirms
 when it is ready to reopen offline. Captures remain local while offline, and queued
@@ -69,8 +127,8 @@ bun run web
 Google credentials stay in Application Default Credentials, outside the app bundle.
 The gateway listens only on `127.0.0.1:8091` and accepts the configured browser
 origin. It is a local development service, with no public user authentication;
-deployment at `pete.bevmaq.com` requires an authenticated server and native access
-configuration first.
+the hosted pilot uses the separate authenticated Cloud Run service described above.
+Native access is not connected to that hosted service yet.
 
 The original recording remains in the browser. A copy is uploaded to the configured
 Google bucket, then deleted when processing completes or definitively fails.
@@ -121,8 +179,8 @@ labelled names/company names; it does not infer missing country codes. Review th
 source text and correct OCR/transcription errors before applying details.
 
 Data belongs to this installation/browser origin. There is no sync or backup;
-clearing site data or uninstalling the app removes local records. A future move
-from localhost to `pete.bevmaq.com` will use a different browser database.
+clearing site data or uninstalling the app removes local records. A move
+from localhost to `pete.bevmaq.com` uses a different browser database.
 The development preview needs the server to reopen; the production PWA can reopen
 offline after its first successful cache installation. Keep recording open until
 saving finishes. Automatic structured RFQ extraction is still pending; today the

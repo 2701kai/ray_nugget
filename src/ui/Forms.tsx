@@ -7,6 +7,7 @@ import type { Workspace } from '../useWorkspace';
 import { Button, Choice, ErrorNotice, Field, Txt } from './primitives';
 import { colors } from './theme';
 import { Icon } from './Icon';
+import { sessionEmail, signOutSession } from '../session';
 
 function useSave() {
   const [busy, setBusy] = useState(false);
@@ -65,6 +66,7 @@ export function SettingsForm({ workspace, done }: { workspace: Workspace; done: 
     <Field label="Default visit or event" value={prefs.event} onChangeText={event => setPrefs({ ...prefs, event })} placeholder="For new drafts" helper="Changing this leaves existing drafts unchanged." />
     <ErrorNotice message={save.error} />
     <Button label={save.busy ? 'Saving…' : 'Save your details'} icon="check" disabled={save.busy} onPress={() => save.run(async () => { await workspace.savePreferences(prefs); done(); })} />
+    {!!sessionEmail() && <><Txt style={{ fontSize: 12, color: colors.muted }}>Signed in as {sessionEmail()}</Txt><Button label="Sign out" kind="quiet" disabled={save.busy} onPress={() => save.run(signOutSession)} /></>}
   </>;
 }
 

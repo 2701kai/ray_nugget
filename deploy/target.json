@@ -1,0 +1,9 @@
+{
+  "project": "bevmaq-platform",
+  "region": "europe-west4",
+  "site": "bevmaq-platform",
+  "webApp": "1:697899236759:web:179c3b7cd7b241cf0e58d2",
+  "service": "pete-api",
+  "database": "pete",
+  "domain": "pete.bevmaq.com"
+}

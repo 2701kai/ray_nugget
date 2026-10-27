@@ -9,6 +9,7 @@ import { createProcessor, supportedKinds } from './processing/processor';
 import { startProcessing } from './processing/runner';
 import type { ProcessingJob } from './processing/jobs';
 import type { Contact } from './domain/draft';
+import { storageName } from './session';
 
 export function useWorkspace() {
   const repo = useRef<DraftRepository | null>(null);
@@ -25,7 +26,7 @@ export function useWorkspace() {
     let current: DraftRepository | undefined;
     let currentRunner: ReturnType<typeof startProcessing> | undefined;
     setLoading(true); setError('');
-    openRepository().then(async repository => {
+    openRepository(storageName()).then(async repository => {
       current = repository;
       const [records, prefs, tasks, selected] = await Promise.all([repository.list(), repository.preferences(), repository.jobs(), repository.activeDraft()]);
       if (!alive) return repository.close();
