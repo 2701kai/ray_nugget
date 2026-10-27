@@ -6,7 +6,7 @@ test.use({ viewport: { width: 390, height: 844 } });
 // still abort real browser transactions, exercising rollback and the worker/UI.
 async function injectFailure(page: Page, mode: 'index' | 'all' | 'off') {
   await page.addInitScript(mode => {
-    const probe = { mode, failures: 0, cursorReads: 0 }; (window as any).__storageFault = probe;
+    const probe = { mode, failures: 0, scanReads: 0 }; (window as any).__storageFault = probe;
     const indexGet = IDBIndex.prototype.get;
     IDBIndex.prototype.get = function (...args) {
       const request = indexGet.apply(this, args);
@@ -18,11 +18,11 @@ async function injectFailure(page: Page, mode: 'index' | 'all' | 'off') {
       }
       return request;
     };
-    const openCursor = IDBObjectStore.prototype.openCursor;
-    IDBObjectStore.prototype.openCursor = function (...args) {
-      const request = openCursor.apply(this, args);
-      if (this.name === 'jobs') {
-        probe.cursorReads++;
+    const getAll = IDBObjectStore.prototype.getAll;
+    IDBObjectStore.prototype.getAll = function (...args) {
+      const request = getAll.apply(this, args);
+      if (this.name === 'jobs' && this.transaction.mode === 'readwrite') {
+        probe.scanReads++;
         if (probe.mode === 'all') {
           probe.failures++;
           const transaction = this.transaction;
@@ -69,7 +69,7 @@ test('reported index failure falls back without blocking capture and keeps origi
   await page.getByRole('checkbox', { name: 'Use email', exact: true }).check();
   await page.getByRole('button', { name: 'Apply selected details', exact: true }).click();
   await expect(page.getByText('Reviewed · source text kept', { exact: true })).toBeVisible();
-  await expect.poll(() => page.evaluate(() => (window as any).__storageFault.cursorReads)).toBeGreaterThan(0);
+  await expect.poll(() => page.evaluate(() => (window as any).__storageFault.scanReads)).toBeGreaterThan(0);
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Safari recovery visitor', exact: true })).toBeVisible();
   await expect(page.getByRole('img', { name: 'safari-card.png', exact: true })).toBeVisible();

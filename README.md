@@ -298,7 +298,8 @@ It replays the reported missing-transaction index error on real browser requests
 then verifies card capture, local OCR, review, and persistence after reload. A second
 case verifies that background queue failures leave capture available and clear on
 recovery. The workaround rolls back the failed transaction and uses an atomic
-object-store cursor on the affected connection; it does not reset the database.
+object-store scan in bounded batches on the affected connection; it does not reset
+the database.
 These checks do not replace physical-device testing. An Android JavaScript/Hermes
 export can be checked with:
 
@@ -309,6 +310,11 @@ bun expo export --platform android --output-dir .tmp/android-export
 The application uses Expo/React Native with platform-specific storage and media
 adapters. UI is in `App.tsx` and `src/ui/`; draft rules are in `src/domain/`, queue
 and processors in `src/processing/`, and the Google gateway in `server/`.
+
+`bun run bench:storage` measures real-browser queue and durable capture latency
+with 50/500 synthetic visitors, verifies originals after reopening, and saves local
+reports. See [benchmarks/README.md](benchmarks/README.md) for workload, provisional
+budgets, CPU-throttled/WebKit runs and the limits of these lab measurements.
 
 Implementation references: [Tesseract worker API](https://github.com/naptha/tesseract.js/blob/master/docs/api.md)
 and [Google V2 batch transcription](https://docs.cloud.google.com/speech-to-text/docs/batch-recognize).

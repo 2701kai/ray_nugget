@@ -45,14 +45,18 @@ export async function openRepository(name = 'ray-nugget-v1'): Promise<DraftRepos
           async next(kinds, now) {
             if (useScan) {
               // WebKit can report a missing backing transaction from index.get.
-              // Keep the claim atomic using a fresh transaction and store cursor;
-              // only affected connections pay for this slower compatibility path.
+              // Keep the claim atomic in a fresh transaction. Bounded batches
+              // avoid a browser roundtrip for every historical job, while keeping
+              // memory bounded. Only affected connections use this fallback.
               let next: ProcessingJob | undefined;
-              let cursor = await jobs.openCursor();
-              while (cursor) {
-                const job = cursor.value;
-                if (kinds.includes(job.kind) && job.readyAt <= now && (!next || job.readyAt < next.readyAt)) next = job;
-                cursor = await cursor.continue();
+              let after: string | undefined;
+              for (;;) {
+                const batch = await jobs.getAll(after === undefined ? undefined : IDBKeyRange.lowerBound(after, true), 256);
+                for (const job of batch) {
+                  if (kinds.includes(job.kind) && job.readyAt >= 0 && job.readyAt <= now && (!next || job.readyAt < next.readyAt)) next = job;
+                }
+                if (batch.length < 256) break;
+                after = batch[batch.length - 1].id;
               }
               return next;
             }

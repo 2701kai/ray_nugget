@@ -4,7 +4,7 @@ import { openDB } from 'idb';
 import { openRepository } from '../src/storage/repository.web';
 import { createDraft, type Attachment } from '../src/domain/draft';
 import { contactCandidates } from '../src/processing/contact';
-import { LEASE_MS } from '../src/processing/jobs';
+import { LEASE_MS, NEVER } from '../src/processing/jobs';
 
 const card: Attachment = { id: 'card', kind: 'card', name: 'synthetic.png', mimeType: 'image/png', bytes: 3, sha256: 'synthetic', capturedAt: '2026-10-27T13:00:00.000Z' };
 const result = { text: 'Company: Test GmbH\nhello@example.test', fields: { company: 'Test GmbH', email: 'hello@example.test' }, engine: 'Synthetic test processor' };
@@ -120,7 +120,7 @@ test('candidate extraction keeps ambiguous contact values in the text and does n
   expect(contactCandidates('+1 202 555 0182\n+1 202 555 0183').phone).toBeUndefined();
 });
 
-test('WebKit index failures retry on a fresh atomic cursor transaction without duplicate claims', async () => {
+test('WebKit index failures retry on a fresh atomic store transaction without duplicate claims', async () => {
   const { repo, name } = await setup(); const other = await openRepository(name);
   const original = IDBIndex.prototype.get; let failures = 0;
   IDBIndex.prototype.get = function () {
@@ -141,6 +141,31 @@ test('WebKit index failures retry on a fresh atomic cursor transaction without d
     expect((await repo.reviewJob(job.id, result.fields, draft.revision)).contact.email).toBe(result.fields.email);
     expect(await repo.media('visitor-a', card.id)).toEqual(new Uint8Array([1, 2, 3]));
   } finally { IDBIndex.prototype.get = original; await repo.close(); await other.close(); }
+});
+
+test('fallback searches beyond completed history and selects the earliest eligible kind across pages', async () => {
+  const { repo, name } = await setup();
+  const now = Date.now() + 1000;
+  for (const id of ['a-visitor', 'z-visitor', 'y-voice']) {
+    await repo.create(createDraft(id, 'contact', '', card.capturedAt));
+    await repo.update(id, { type: 'attach', attachment: { ...card, kind: id === 'y-voice' ? 'voice' : 'card' } }, undefined, new Uint8Array([1, 2, 3]));
+  }
+  const db = await openDB(name);
+  const jobs = await repo.jobs();
+  const tx = db.transaction('jobs', 'readwrite');
+  for (const job of jobs) await tx.store.put({ ...job, readyAt: now - ({ 'a-visitor': 10, 'visitor-a': 100, 'z-visitor': 200, 'y-voice': 300 }[job.draftId] ?? 0) });
+  for (let index = 0; index < 350; index++) await tx.store.put({ ...jobs[0], id: `history-${String(index).padStart(3, '0')}`, state: 'complete', readyAt: NEVER });
+  await tx.done; db.close();
+  const original = IDBIndex.prototype.get;
+  IDBIndex.prototype.get = () => { throw new DOMException('Attempt to get an index record from database without an in-progress transaction', 'UnknownError'); };
+  try {
+    expect((await repo.claimJob(['card'], 'one', now))?.draftId).toBe('z-visitor');
+    expect((await repo.claimJob(['card'], 'two', now))?.draftId).toBe('visitor-a');
+    expect((await repo.claimJob(['card'], 'three', now))?.draftId).toBe('a-visitor');
+    expect(await repo.claimJob(['card'], 'four', now)).toBeUndefined();
+    expect((await repo.claimJob(['voice'], 'five', now))?.draftId).toBe('y-voice');
+    expect((await repo.jobs()).filter(job => job.state === 'running')).toHaveLength(4);
+  } finally { IDBIndex.prototype.get = original; await repo.close(); }
 });
 
 test('unrelated database failures are surfaced without applying the index workaround', async () => {
