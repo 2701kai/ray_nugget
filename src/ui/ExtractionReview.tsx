@@ -47,12 +47,12 @@ export function ExtractionReview({ job, draft, workspace, close }: { job: Proces
     finally { setBusy(false); }
   }
   return <Sheet title={job.kind === 'card' ? 'Read. Check. Keep.' : 'Review the conversation.'} subtitle="The original stays attached to this visitor" locked={busy} onClose={close}>
-    <Txt style={{ color: colors.muted, fontSize: 12 }}>Check the source text before using a suggestion. Existing details are left unselected; select a field explicitly to replace it.</Txt>
+    <Txt style={{ color: colors.muted, fontSize: 16 }}>Check the source text before using a suggestion. Existing details are left unselected; select a field explicitly to replace it.</Txt>
     <View style={{ backgroundColor: colors.pale, padding: 16, borderRadius: 12, gap: 8 }}>
-      <Txt weight="semibold" style={{ fontSize: 12 }}>{job.kind === 'card' ? 'Text read from the card' : 'Transcript'}</Txt>
-      <ScrollView style={{ maxHeight: 220 }} nestedScrollEnabled><Txt selectable style={{ fontSize: 12, lineHeight: 20 }}>{job.result?.text || 'No readable text found. Keep the original and add the details manually.'}</Txt></ScrollView>
-      {(job.result?.text.length ?? 0) > 600 && <Txt style={{ fontSize: 10, color: colors.muted }}>Scroll the source text to read more.</Txt>}
-      <Txt style={{ color: colors.muted, fontSize: 10 }}>{job.result?.engine}</Txt>
+      <Txt weight="semibold" style={{ fontSize: 16 }}>{job.kind === 'card' ? 'Text read from the card' : 'Transcript'}</Txt>
+      <ScrollView style={{ maxHeight: 220 }} nestedScrollEnabled><Txt selectable style={{ fontSize: 16, lineHeight: 24 }}>{job.result?.text || 'No readable text found. Keep the original and add the details manually.'}</Txt></ScrollView>
+      {(job.result?.text.length ?? 0) > 600 && <Txt style={{ fontSize: 16, color: colors.muted }}>Scroll the source text to read more.</Txt>}
+      <Txt style={{ color: colors.muted, fontSize: 16 }}>{job.result?.engine}</Txt>
     </View>
     {!!job.result?.text && <Button kind="quiet" label={copied ? 'Source text copied' : 'Copy source text'} icon="copy" onPress={async () => { try { await Clipboard.setStringAsync(job.result!.text); setCopied(true); } catch { setError('Could not copy the text.'); } }} />}
     {job.reviewedAt !== undefined ? <Txt style={{ color: colors.green }}>Reviewed. The source text remains available here.</Txt> : <>
@@ -61,7 +61,7 @@ export function ExtractionReview({ job, draft, workspace, close }: { job: Proces
         <Field label={labels[field]} value={values[field]} onChangeText={value => { setValues({ ...values, [field]: value }); setSelected({ ...selected, [field]: true }); }} helper={draft.contact[field] ? `Currently: ${draft.contact[field]}` : undefined} />
       </View>)}
       {job.kind === 'voice' && <View style={{ gap: 18, borderTopWidth: 1, borderColor: colors.line, paddingTop: 16 }}>
-        <View style={{ gap: 4 }}><Txt weight="bold">Filling request</Txt><Txt style={{ color: colors.muted, fontSize: 12 }}>Check these details against the conversation. Missing or unclear information can be added manually.</Txt></View>
+        <View style={{ gap: 4 }}><Txt weight="bold">Filling request</Txt><Txt style={{ color: colors.muted, fontSize: 16 }}>Check these details against the conversation. Missing or unclear information can be added manually.</Txt></View>
         {(['product', 'packaging'] as const).map(field => <View key={field} style={{ gap: 8 }}>
           <Check label={field === 'product' ? 'Use product' : 'Use container / packaging'} checked={requestSelected[field]} onPress={() => setRequestSelected({ ...requestSelected, [field]: !requestSelected[field] })} />
           <Field label={field === 'product' ? 'Product to fill' : 'Container / packaging'} value={request[field]} onChangeText={value => { setRequest({ ...request, [field]: value }); setRequestSelected({ ...requestSelected, [field]: true }); }} helper={draft.request[field] ? `Currently: ${draft.request[field]}` : draft.provenance[`request.${field}`] ? 'Previously cleared. Select explicitly to replace.' : undefined} />
@@ -83,12 +83,12 @@ export function ExtractionReview({ job, draft, workspace, close }: { job: Proces
 }
 
 function Evidence({ text }: { text?: string }) {
-  return <Txt selectable style={{ fontSize: 11, lineHeight: 17, color: colors.muted }}>{text ? `From transcript: “${text}”` : 'No clear suggestion. Check the transcript.'}</Txt>;
+  return <Txt selectable style={{ fontSize: 16, lineHeight: 24, color: colors.muted }}>{text ? `From transcript: “${text}”` : 'No clear suggestion. Check the transcript.'}</Txt>;
 }
 
 function Check({ label, checked, onPress }: { label: string; checked: boolean; onPress: () => void }) {
   return <Pressable accessibilityRole="checkbox" accessibilityLabel={label} accessibilityState={{ checked }} aria-checked={checked} onPress={onPress} style={{ flexDirection: 'row', gap: 10, alignItems: 'center', minHeight: 36 }}>
-    <View style={{ width: 22, height: 22, borderWidth: 1, borderColor: colors.green, borderRadius: 5, backgroundColor: checked ? colors.green : colors.paper }}>{checked && <Icon name="check" size={20} color={colors.paper} />}</View><Txt style={{ flex: 1, fontSize: 12 }}>{label}</Txt>
+    <View style={{ width: 22, height: 22, borderWidth: 1, borderColor: colors.green, borderRadius: 5, backgroundColor: checked ? colors.green : colors.paper }}>{checked && <Icon name="check" size={20} color={colors.paper} />}</View><Txt style={{ flex: 1, fontSize: 16 }}>{label}</Txt>
   </Pressable>;
 }
 
@@ -104,8 +104,8 @@ export function ProcessingStatus({ draft, attachmentId, workspace }: { draft: Dr
     : job.state === 'failed' ? 'Processing paused · retry when ready'
     : job.error ? 'Will retry shortly · original is safe' : 'Waiting to read · original is safe';
   return <View style={{ gap: 6 }}>
-    <Txt accessibilityLiveRegion="polite" style={{ fontSize: 11, lineHeight: 18, color: job.state === 'failed' ? colors.danger : colors.green }}>{label}</Txt>
-    {!!job.error && <Txt style={{ fontSize: 10, color: colors.muted }}>{job.error}</Txt>}
+    <Txt accessibilityLiveRegion="polite" style={{ fontSize: 16, lineHeight: 24, color: job.state === 'failed' ? colors.danger : colors.green }}>{label}</Txt>
+    {!!job.error && <Txt style={{ fontSize: 16, color: colors.muted }}>{job.error}</Txt>}
     <ErrorNotice message={error} />
     {job.state === 'complete' && <Button label={job.reviewedAt !== undefined ? 'View source text' : 'Review extracted text'} kind="secondary" onPress={() => setReviewing(true)} />}
     {job.state === 'failed' && available && <Button label="Retry processing" kind="secondary" onPress={async () => { try { await workspace.retryJob(job.id); } catch { setError('Could not queue the retry.'); } }} />}

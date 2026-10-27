@@ -12,7 +12,10 @@ may still be in progress. The repository remains `ray_nugget`; the app is named 
 
 Use **Continue with Google** and select your `@bevmaq.com` work account.
 Only verified company accounts can open the workspace or use transcription.
-Sign out in Settings. The Google account picker hints at the company domain;
+Open the labelled **Settings** control and choose **Sign out** near the top,
+under your email. Mobile body text is 18 pixels, with labels and helper text at
+least 16 pixels, darker secondary text, and larger controls.
+The Google account picker hints at the company domain;
 the application and API enforce it independently. Google sign-in with an existing
 account's email keeps its Firebase UID and corresponding local drafts.
 The Google screen currently uses this company's shared OAuth brand,

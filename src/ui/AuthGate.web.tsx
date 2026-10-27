@@ -48,7 +48,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
         <Button label={busy ? 'Opening Google…' : user ? 'Use another Google account' : 'Continue with Google'} disabled={busy} onPress={() => { void signIn(); }} />
       </>}
       <ErrorNotice message={error} />
-      <Txt style={{ fontSize: 12, lineHeight: 20, color: colors.muted }}>For the BEVMAQ team. Once signed in, saved drafts and captures are available offline on this device.</Txt>
+      <Txt style={{ fontSize: 16, lineHeight: 24, color: colors.muted }}>For the BEVMAQ team. Once signed in, saved drafts and captures are available offline on this device.</Txt>
     </View>
   </ScrollView>;
 }

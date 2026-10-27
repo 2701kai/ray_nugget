@@ -14,9 +14,9 @@ function Contents({ draft }: { draft: Draft }) {
   const size = draft.attachments.reduce((sum, a) => sum + a.bytes, 0) / 1024 / 1024;
   return <View style={{ padding: 16, backgroundColor: colors.pale, borderRadius: 12, gap: 6 }}>
     <Txt weight="bold">{titleOf(draft)}</Txt>
-    {!!draft.event && <Txt style={{ color: colors.muted, fontSize: 12 }}>{draft.event}</Txt>}
-    <Txt style={{ fontSize: 12 }}>{cards} card {cards === 1 ? 'photo' : 'photos'} · {recordings} {recordings === 1 ? 'recording' : 'recordings'} · {size < 0.1 ? '< 0.1' : size.toFixed(1)} MiB of originals</Txt>
-    <Txt style={{ fontSize: 12, color: colors.muted }}>Includes contact details, request, notes, transcripts, and original files.</Txt>
+    {!!draft.event && <Txt style={{ color: colors.muted, fontSize: 16 }}>{draft.event}</Txt>}
+    <Txt style={{ fontSize: 16 }}>{cards} card {cards === 1 ? 'photo' : 'photos'} · {recordings} {recordings === 1 ? 'recording' : 'recordings'} · {size < 0.1 ? '< 0.1' : size.toFixed(1)} MiB of originals</Txt>
+    <Txt style={{ fontSize: 16, color: colors.muted }}>Includes contact details, request, notes, transcripts, and original files.</Txt>
   </View>;
 }
 
@@ -34,11 +34,11 @@ export function SaveBackup({ draft, workspace, lock }: { draft: Draft; workspace
   }
   return <>
     <Contents draft={draft} />
-    <Txt style={{ color: colors.muted, fontSize: 12 }}>Save this backup in your company’s file storage. It contains customer details and recordings and is not encrypted. Pete does not upload it automatically.</Txt>
-    <Txt style={{ color: colors.muted, fontSize: 12 }}>To recover it on another device, sign in to Pete and choose Restore a backup. Up to 128 MiB per draft.</Txt>
+    <Txt style={{ color: colors.muted, fontSize: 16 }}>Save this backup in your company’s file storage. It contains customer details and recordings and is not encrypted. Pete does not upload it automatically.</Txt>
+    <Txt style={{ color: colors.muted, fontSize: 16 }}>To recover it on another device, sign in to Pete and choose Restore a backup. Up to 128 MiB per draft.</Txt>
     <ErrorNotice message={error} />
     <Button label={busy ? 'Preparing backup…' : 'Save backup file'} icon="download" disabled={busy} onPress={() => { void save(); }} />
-    {saved && <Txt accessibilityLiveRegion="polite" style={{ color: colors.green, fontSize: 12 }}>Backup file prepared. Check that it was saved in your chosen location.</Txt>}
+    {saved && <Txt accessibilityLiveRegion="polite" style={{ color: colors.green, fontSize: 16 }}>Backup file prepared. Check that it was saved in your chosen location.</Txt>}
   </>;
 }
 
@@ -67,9 +67,9 @@ export function RestoreBackup({ workspace, lock, done }: { workspace: Workspace;
     finally { running.current = false; setPhase('idle'); lock(false); }
   }
   return <>
-    <Txt style={{ color: colors.muted, fontSize: 12 }}>Choose a .pete backup to recover its draft and original files on this device. Existing drafts stay as they are. Importing the same file again opens its restored copy, keeping any edits.</Txt>
+    <Txt style={{ color: colors.muted, fontSize: 16 }}>Choose a .pete backup to recover its draft and original files on this device. Existing drafts stay as they are. Importing the same file again opens its restored copy, keeping any edits.</Txt>
     <Button label={phase === 'checking' ? 'Checking backup…' : backup ? 'Choose another backup' : 'Choose backup file'} kind="secondary" disabled={phase !== 'idle'} onPress={() => { void choose(); }} />
-    {backup && <><Contents draft={backup.draft} /><Txt style={{ color: colors.muted, fontSize: 12 }}>Unfinished transcription and card reading stay paused until you choose Retry processing. Restore creates a separate draft.</Txt><Button label={phase === 'restoring' ? 'Restoring…' : 'Restore draft'} disabled={phase !== 'idle'} icon="check" onPress={() => { void restore(); }} /></>}
+    {backup && <><Contents draft={backup.draft} /><Txt style={{ color: colors.muted, fontSize: 16 }}>Unfinished transcription and card reading stay paused until you choose Retry processing. Restore creates a separate draft.</Txt><Button label={phase === 'restoring' ? 'Restoring…' : 'Restore draft'} disabled={phase !== 'idle'} icon="check" onPress={() => { void restore(); }} /></>}
     <ErrorNotice message={error} />
   </>;
 }
