@@ -1,0 +1,44 @@
+{
+  "name": "pete",
+  "version": "0.1.0",
+  "private": true,
+  "main": "index.ts",
+  "packageManager": "bun@1.4.4",
+  "scripts": {
+    "start": "expo start",
+    "web": "expo start --web --port 8081",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "build:web": "expo export --platform web",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test ./tests",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "@expo-google-fonts/manrope": "0.4.2",
+    "@expo/metro-runtime": "~58.0.15",
+    "expo": "~58.0.19",
+    "expo-audio": "~58.0.10",
+    "expo-clipboard": "~58.0.4",
+    "expo-crypto": "~58.0.7",
+    "expo-file-system": "~58.0.11",
+    "expo-font": "~58.0.10",
+    "expo-image-picker": "~58.0.10",
+    "expo-sharing": "~58.0.20",
+    "expo-sqlite": "~58.0.14",
+    "idb": "8.0.4",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "react-native": "0.88.0",
+    "react-native-safe-area-context": "~5.10.1",
+    "react-native-svg": "15.16.0",
+    "react-native-web": "^0.21.4"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.64.1",
+    "@types/bun": "^1.4.4",
+    "@types/react": "~19.3.0",
+    "fake-indexeddb": "6.2.6",
+    "typescript": "~6.0.3"
+  }
+}

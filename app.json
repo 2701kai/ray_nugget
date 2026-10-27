@@ -1,0 +1,42 @@
+{
+  "expo": {
+    "name": "Pete",
+    "slug": "pete",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "scheme": "pete",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.bevmaq.pete"
+    },
+    "android": {
+      "package": "com.bevmaq.pete"
+    },
+    "web": {
+      "bundler": "metro",
+      "name": "Pete",
+      "description": "Pete by BEVMAQ — capture contacts, business cards, voice notes, and requests."
+    },
+    "plugins": [
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Allow Pete to record a voice note or a consented conversation.",
+          "enableBackgroundRecording": false
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Pete to attach a business-card photo.",
+          "cameraPermission": "Allow Pete to photograph a business card.",
+          "microphonePermission": false
+        }
+      ],
+      "expo-sqlite",
+      "expo-font",
+      "expo-sharing"
+    ]
+  }
+}
