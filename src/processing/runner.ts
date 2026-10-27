@@ -11,10 +11,16 @@ export interface Processor {
 
 // One job per kind: a long cloud transcription cannot block local card OCR.
 // Storage leases also fence other tabs and restarts.
-export function startProcessing(repo: DraftRepository, processor: Processor, changed: () => Promise<void>, error: (message: string) => void, uuid: () => string) {
+export function startProcessing(repo: DraftRepository, processor: Processor, changed: () => Promise<void>, error: (message?: string) => void, uuid: () => string) {
   const controller = new AbortController();
-  type Lane = { kind: Attachment['kind']; busy: boolean; heartbeat?: ReturnType<typeof setInterval> };
+  type Lane = { kind: Attachment['kind']; busy: boolean; heartbeat?: ReturnType<typeof setInterval>; error?: string };
   const lanes: Lane[] = processor.kinds.map(kind => ({ kind, busy: false }));
+  let reportedError: string | undefined;
+  function report(lane: Lane, message?: string) {
+    lane.error = message;
+    const current = lanes.find(lane => lane.error)?.error;
+    if (current !== reportedError) { reportedError = current; error(current); }
+  }
   async function tick(lane: Lane) {
     if (lane.busy || controller.signal.aborted || processor.isAvailable?.(lane.kind) === false) return;
     lane.busy = true;
@@ -22,6 +28,8 @@ export function startProcessing(repo: DraftRepository, processor: Processor, cha
     const leaseId = uuid();
     try {
       job = await repo.claimJob([lane.kind], leaseId);
+      if (controller.signal.aborted) return;
+      report(lane);
       if (!job) return;
       const activeJob = job;
       lane.heartbeat = setInterval(() => { void repo.renewJob(activeJob.id, leaseId).catch(() => undefined); }, 10_000);
@@ -35,12 +43,12 @@ export function startProcessing(repo: DraftRepository, processor: Processor, cha
     } catch (e) {
       if (!controller.signal.aborted) {
         const message = e instanceof Error ? e.message : 'Processing failed. Please retry.';
-        if (job) await repo.failJob(job.id, leaseId, message).catch(() => error('Could not save processing status.'));
-        else error(message);
+        if (job) await repo.failJob(job.id, leaseId, message).catch(() => report(lane, 'Could not save processing status.'));
+        else report(lane, message);
       }
     } finally {
       if (lane.heartbeat) clearInterval(lane.heartbeat);
-      if (job && !controller.signal.aborted) await changed().catch(() => error('Could not refresh processing status.'));
+      if (job && !controller.signal.aborted) await changed().catch(() => report(lane, 'Could not refresh processing status.'));
       lane.busy = false;
     }
   }

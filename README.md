@@ -282,6 +282,20 @@ Production tests use port 8082 and additionally cover offline reopen/recording,
 reconnection, source association after switching visitors, and static-only caching.
 Unit tests cover draft rules, database migration, transaction rollback, queue leases,
 retry/recovery, manual-edit protection, and Google operation persistence/cleanup.
+
+The storage recovery regression also runs in WebKit against the production build:
+
+```sh
+bunx playwright install webkit
+bun run build:web
+bun run test:webkit
+```
+
+It replays the reported missing-transaction index error on real browser requests,
+then verifies card capture, local OCR, review, and persistence after reload. A second
+case verifies that background queue failures leave capture available and clear on
+recovery. The workaround rolls back the failed transaction and uses an atomic
+object-store cursor on the affected connection; it does not reset the database.
 These checks do not replace physical-device testing. An Android JavaScript/Hermes
 export can be checked with:
 

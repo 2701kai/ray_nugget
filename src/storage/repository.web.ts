@@ -30,21 +30,46 @@ export async function openRepository(name = 'ray-nugget-v1'): Promise<DraftRepos
     },
     blocking() { db.close(); },
   });
+  let scanDueJobs = false;
   const processing = processingRepository({
     list: () => db.getAll('jobs'),
     async atomic(run) {
-      const tx = db.transaction(['drafts', 'jobs'], 'readwrite');
-      const jobs = tx.objectStore('jobs');
-      const adapter: JobTransaction = {
-        job: id => jobs.get(id), putJob: async job => { await jobs.put(job); },
-        draft: id => tx.objectStore('drafts').get(id), putDraft: async draft => { await tx.objectStore('drafts').put(draft); },
-        async next(kinds, now) {
-          const candidates = (await Promise.all(kinds.map(kind => jobs.index('due').get(IDBKeyRange.bound([kind, 0], [kind, now]))))).filter((job): job is ProcessingJob => !!job);
-          return candidates.sort((a, b) => a.readyAt - b.readyAt)[0];
-        },
-      };
-      try { const result = await run(adapter); await tx.done; return result; }
-      catch (error) { try { tx.abort(); } catch {} await tx.done.catch(() => undefined); throw error; }
+      for (;;) {
+        const useScan = scanDueJobs;
+        const tx = db.transaction(['drafts', 'jobs'], 'readwrite');
+        void tx.done.catch(() => undefined);
+        const jobs = tx.objectStore('jobs');
+        const adapter: JobTransaction = {
+          job: id => jobs.get(id), putJob: async job => { await jobs.put(job); },
+          draft: id => tx.objectStore('drafts').get(id), putDraft: async draft => { await tx.objectStore('drafts').put(draft); },
+          async next(kinds, now) {
+            if (useScan) {
+              // WebKit can report a missing backing transaction from index.get.
+              // Keep the claim atomic using a fresh transaction and store cursor;
+              // only affected connections pay for this slower compatibility path.
+              let next: ProcessingJob | undefined;
+              let cursor = await jobs.openCursor();
+              while (cursor) {
+                const job = cursor.value;
+                if (kinds.includes(job.kind) && job.readyAt <= now && (!next || job.readyAt < next.readyAt)) next = job;
+                cursor = await cursor.continue();
+              }
+              return next;
+            }
+            const candidates = (await Promise.all(kinds.map(kind => jobs.index('due').get(IDBKeyRange.bound([kind, 0], [kind, now]))))).filter((job): job is ProcessingJob => !!job);
+            return candidates.sort((a, b) => a.readyAt - b.readyAt)[0];
+          },
+        };
+        try { const result = await run(adapter); await tx.done; return result; }
+        catch (error) {
+          try { tx.abort(); } catch {} await tx.done.catch(() => undefined);
+          if (!useScan && error instanceof Error && error.name === 'UnknownError' && /get an index record.*without an in-progress transaction/i.test(error.message)) {
+            scanDueJobs = true;
+            continue; // The failed transaction is fully rolled back before retry.
+          }
+          throw error;
+        }
+      }
     },
   });
   return {

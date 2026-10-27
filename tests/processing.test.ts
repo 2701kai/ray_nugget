@@ -119,3 +119,36 @@ test('candidate extraction keeps ambiguous contact values in the text and does n
   expect(contactCandidates('0171 5550101\na@example.test\nb@example.test')).toEqual({});
   expect(contactCandidates('+1 202 555 0182\n+1 202 555 0183').phone).toBeUndefined();
 });
+
+test('WebKit index failures retry on a fresh atomic cursor transaction without duplicate claims', async () => {
+  const { repo, name } = await setup(); const other = await openRepository(name);
+  const original = IDBIndex.prototype.get; let failures = 0;
+  IDBIndex.prototype.get = function () {
+    failures++;
+    throw new DOMException('Attempt to get an index record from database without an in-progress transaction', 'UnknownError');
+  };
+  try {
+    const now = Date.now() + 100;
+    const claims = await Promise.all([repo.claimJob(['card'], 'one', now), other.claimJob(['card'], 'two', now)]);
+    expect(claims.filter(Boolean)).toHaveLength(1);
+    const job = claims.find(Boolean)!;
+    expect(job.attempts).toBe(1);
+    expect(failures).toBe(2);
+    expect(await repo.claimJob(['card'], 'again', now + 1)).toBeUndefined();
+    expect(failures).toBe(2); // The affected connection no longer uses index.get.
+    expect(await repo.finishJob(job.id, job.leaseId!, result, now + 2)).toBe(true);
+    const draft = (await repo.list())[0];
+    expect((await repo.reviewJob(job.id, result.fields, draft.revision)).contact.email).toBe(result.fields.email);
+    expect(await repo.media('visitor-a', card.id)).toEqual(new Uint8Array([1, 2, 3]));
+  } finally { IDBIndex.prototype.get = original; await repo.close(); await other.close(); }
+});
+
+test('unrelated database failures are surfaced without applying the index workaround', async () => {
+  const { repo } = await setup(); const original = IDBIndex.prototype.get; let reads = 0;
+  IDBIndex.prototype.get = function () { reads++; throw new DOMException('Synthetic storage failure', 'QuotaExceededError'); };
+  try {
+    await expect(repo.claimJob(['card'], 'worker', Date.now() + 100)).rejects.toThrow('Synthetic storage failure');
+    expect(reads).toBe(1);
+    expect((await repo.jobs())[0]).toMatchObject({ state: 'queued', attempts: 0 });
+  } finally { IDBIndex.prototype.get = original; await repo.close(); }
+});

@@ -22,12 +22,13 @@ export function useWorkspace() {
   const [preferences, setPreferences] = useState(defaultPreferences);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [processingError, setProcessingError] = useState('');
   const [generation, setGeneration] = useState(0);
   useEffect(() => {
     let alive = true;
     let current: DraftRepository | undefined;
     let currentRunner: ReturnType<typeof startProcessing> | undefined;
-    setLoading(true); setError('');
+    setLoading(true); setError(''); setProcessingError('');
     openRepository(storageName()).then(async repository => {
       current = repository;
       const [records, prefs, tasks, selected] = await Promise.all([repository.list(), repository.preferences(), repository.jobs(), repository.activeDraft()]);
@@ -36,7 +37,7 @@ export function useWorkspace() {
       currentRunner = startProcessing(repository, createProcessor(), async () => {
         const tasks = await repository.jobs();
         if (alive) setJobs(tasks);
-      }, message => { if (alive) setError(message); }, Crypto.randomUUID);
+      }, message => { if (alive) setProcessingError(message ? 'Background processing is paused. You can keep capturing; Pete will retry.' : ''); }, Crypto.randomUUID);
       runner.current = currentRunner;
     }).catch(error => { if (alive) { setError(error instanceof Error ? error.message : 'Local storage is unavailable.'); setLoading(false); } });
     const subscription = AppState.addEventListener('change', state => {
@@ -83,6 +84,6 @@ export function useWorkspace() {
     if (repo.current !== current) throw new Error('The signed-in account changed. Reopen Pete to see the restored draft.');
     merge(result.draft); setJobs(await current.jobs()); setActiveDraftId(result.draft.id); return result;
   }
-  return { drafts, activeDraftId, activateDraft, jobs, supportedKinds, preferences, loading, error, retry: () => setGeneration(g => g + 1), create, update, attach, savePreferences, getMedia, retryJob, reviewJob, backup, restore };
+  return { drafts, activeDraftId, activateDraft, jobs, supportedKinds, preferences, loading, error, processingError, retry: () => setGeneration(g => g + 1), create, update, attach, savePreferences, getMedia, retryJob, reviewJob, backup, restore };
 }
 export type Workspace = ReturnType<typeof useWorkspace>;
