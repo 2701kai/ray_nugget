@@ -2,6 +2,7 @@ import { openDB, type DBSchema } from 'idb';
 import { checkRevision, reduceDraft, type Draft } from '../domain/draft';
 import { defaultPreferences, type DraftRepository, type Preferences } from './types';
 import { newJob, processingRepository, type ProcessingJob, type JobTransaction } from '../processing/jobs';
+import { assertBackupSize, restoredSnapshot, type BackupSnapshot } from '../backup/archive';
 
 interface PeteDatabase extends DBSchema {
   drafts: { key: string; value: Draft };
@@ -84,6 +85,41 @@ export async function openRepository(name = 'ray-nugget-v1'): Promise<DraftRepos
       }
     },
     media: (draftId, attachmentId) => db.get('media', `${draftId}:${attachmentId}`),
+    async snapshot(id) {
+      const tx = db.transaction(['drafts', 'media', 'jobs'], 'readonly');
+      try {
+        const draft = await tx.objectStore('drafts').get(id); checkRevision(draft);
+        assertBackupSize(draft);
+        const media: BackupSnapshot['media'] = [];
+        const jobs: ProcessingJob[] = [];
+        for (const attachment of draft.attachments) {
+          const bytes = await tx.objectStore('media').get(`${id}:${attachment.id}`);
+          const job = await tx.objectStore('jobs').get(`${id}/${attachment.id}`);
+          if (!bytes || !job) throw new Error('An original file or its source record is missing. Backup was not created.');
+          media.push({ attachmentId: attachment.id, bytes }); jobs.push(job);
+        }
+        await tx.done; return { draft, media, jobs };
+      } catch (error) { try { tx.abort(); } catch {} await tx.done.catch(() => undefined); throw error; }
+    },
+    async restore(backup) {
+      const { draft, media, jobs } = restoredSnapshot(backup);
+      const tx = db.transaction(['drafts', 'media', 'jobs', 'settings'], 'readwrite');
+      // A failed request can reject tx.done before the request's own rejection is
+      // observed. Handle it immediately; the catch below still reports failure.
+      void tx.done.catch(() => undefined);
+      try {
+        const existing = await tx.objectStore('drafts').get(draft.id);
+        if (!existing) {
+          await tx.objectStore('drafts').add(draft);
+          // Copy the view so IndexedDB does not serialize the entire archive's
+          // backing buffer once for every attachment.
+          for (const original of media) await tx.objectStore('media').add(original.bytes.slice(), `${draft.id}:${original.attachmentId}`);
+          for (const job of jobs) await tx.objectStore('jobs').add(job);
+        }
+        await tx.objectStore('settings').put({ activeDraftId: draft.id }, 'active-draft');
+        await tx.done; return { draft: existing ?? draft, created: !existing };
+      } catch (error) { try { tx.abort(); } catch {} await tx.done.catch(() => undefined); throw error; }
+    },
     async preferences() { return (await db.get('settings', 'preferences')) as Preferences ?? structuredClone(defaultPreferences); },
     async savePreferences(value) { await db.put('settings', value, 'preferences'); },
     async close() { db.close(); },

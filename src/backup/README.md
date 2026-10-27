@@ -1,0 +1,36 @@
+# Pete backup format v1
+
+A `.pete` file is an uncompressed binary archive for one visitor. It is not a ZIP,
+an encrypted container, a signed document, or a cloud processing request.
+
+In order, the file contains:
+
+1. The 15 UTF-8 bytes `PETE_BACKUP_V1\n` (a literal newline after `V1`).
+2. A four-byte, big-endian unsigned length of the JSON manifest.
+3. The manifest's SHA-256 as 64 lowercase ASCII hex characters.
+4. The UTF-8 JSON manifest.
+5. Original media bytes in the manifest draft's attachment order, with no padding.
+
+The manifest has `format: "pete-backup/v1"`, `draft` (domain Draft schema v1),
+and `jobs`. Each job carries attachmentId, createdAt, updatedAt, plus result and
+reviewedAt only when complete. Attachment bytes and sha256 define the bounds and
+integrity of each original. Missing data, extra trailing bytes, invalid source
+references, duplicates, unsupported media types or versions are rejected. Only
+known metadata fields are reconstructed. Hashes detect corruption, not authorship.
+
+Limits: 128 MiB total, 4 MiB manifest, 250 attachments/jobs, normal per-capture media
+limits. Export reserves manifest space before loading originals. Snapshot reads
+are transactional; hashing happens outside storage transactions. Import validates
+everything before its atomic insert. IndexedDB writes copy each media slice to
+avoid storing the complete archive backing buffer per attachment.
+
+The manifest hash gives the restored draft ID `restored-<hash>`. Job IDs and all
+provenance/review references are remapped to that draft. A repeated restore opens
+the existing copy without replacing edits. Restoring a different snapshot creates
+a separate draft; no conflict merge is attempted. Source IDs remain unchanged.
+Complete jobs retain their result/review state. Other jobs become failed/paused
+with no lease and no automatic retry. Account settings and credentials are never
+restored. Follow-up previews become outdated because the salesperson may differ.
+
+Do not change this contract in place. An incompatible format requires a new magic
+and schema version plus an explicit migration strategy for existing backup files.

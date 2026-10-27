@@ -31,9 +31,10 @@ lifecycle as fallback. Transcripts and job metadata remain in Firestore; automat
 retention of those records is not configured yet.
 
 Drafts, notes, photos, and original recordings still live **on this device**.
-There is no cross-device draft sync or backup. Localhost, the Firebase address,
-and the custom domain each have separate browser storage; existing drafts do not
-move between them. Use the final custom domain consistently once HTTPS is ready.
+There is no automatic cross-device draft sync or cloud backup. Localhost, the
+Firebase address, and the custom domain each have separate browser storage.
+Use a `.pete` draft backup to transfer originals and source text between them.
+Use the final custom domain consistently once HTTPS is ready.
 Pilot transcription is capped at 40 new attempts per account and 200 total per UTC
 day, with 60 MiB per recording. Processing needs Pete open and connected to submit
 or collect results; Google's accepted operation can continue while Pete is closed.
@@ -199,20 +200,53 @@ of automatically submitting a duplicate. That case needs an operation check.
   Copying a preview is supported; opening WhatsApp and sending are not connected.
 - JSON metadata export, including notes, source text, provenance, and unresolved RFQ fields.
   Original media is **not** included in the export.
+- Per-visitor `.pete` backups include original card photos, recordings, transcripts,
+  notes, reviewed fields and source links. Offline restore creates a separate
+  draft and keeps existing visitors and account preferences intact.
 
 CRM writes, Ray matching, and automatic WhatsApp sending remain future integrations.
 OCR contact parsing suggests unambiguous email/international phone values and
 labelled names/company names; it does not infer missing country codes. Review the
 source text and correct OCR/transcription errors before applying details.
 
-Data belongs to this installation/browser origin. There is no sync or backup;
-clearing site data or uninstalling the app removes local records. A move
+Data belongs to this installation/browser origin. There is no automatic sync or
+cloud backup; clearing site data or uninstalling the app removes local records.
+Save backup files separately before moving devices or clearing storage. A move
 from localhost to `pete.bevmaq.com` uses a different browser database.
 The development preview needs the server to reopen; the production PWA can reopen
 offline after its first successful cache installation. Keep recording open until
 saving finishes. RFQ suggestions use limited text patterns, not a general language
 model; unrecognized phrasing and transcription errors still require manual review.
 Selecting throughput always applies its amount and unit together.
+
+## Back up and recover a visitor
+
+In **Details & request**, choose **Save draft backup → Save backup file**. Keep the
+`.pete` file in company file storage and check that the download/share completed.
+It includes customer details and original recordings and is not encrypted. Pete
+does not upload it automatically. This is a snapshot of one visitor; make a new
+backup after adding more information. Account credentials and personal settings
+are not included. The older JSON export remains a metadata-only handoff.
+
+On the destination device/origin, sign in and choose **Restore a backup** from the
+draft list or Your details. Select the file, check the visitor and original-file
+counts, then choose **Restore draft**. This works offline once Pete is cached and
+the account is signed in. Existing drafts are never overwritten. Importing the
+same file again opens its restored copy and preserves any edits to that copy.
+Different snapshots create separate copies; Pete does not merge them.
+
+Completed source text and review state travel with the originals. Unfinished
+processing stays paused after restore until **Retry processing** is selected;
+retrying audio can submit a new paid transcription. Introduction previews are
+marked outdated so they can be prepared with the destination user's details.
+
+Files are checked for schema, source ownership, lengths and SHA-256 integrity
+before a transaction writes the complete draft/media/jobs together. Corruption
+or a failed write leaves existing drafts intact. Backups are limited to 128 MiB,
+including up to 4 MiB of metadata, and 250 attachments. Both SQLite and IndexedDB
+adapters implement restore; physical native picker/share behavior remains untested.
+The native picker uses [Expo DocumentPicker](https://docs.expo.dev/versions/latest/sdk/document-picker/).
+The format is documented in [src/backup/README.md](src/backup/README.md).
 
 ## Verification
 

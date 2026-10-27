@@ -13,3 +13,22 @@ export async function downloadJson(name: string, value: unknown) {
   link.href = url; link.download = name; link.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
+
+export async function saveBackup(name: string, parts: Uint8Array[]) {
+  const url = URL.createObjectURL(new Blob(parts.map(part => part.buffer instanceof ArrayBuffer ? new Uint8Array(part.buffer, part.byteOffset, part.byteLength) : new Uint8Array(part)), { type: 'application/octet-stream' }));
+  const link = document.createElement('a'); link.href = url; link.download = name;
+  document.body.appendChild(link); link.click(); link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
+
+export async function pickBackup(maxBytes: number): Promise<Uint8Array | undefined> {
+  const file = await new Promise<File | undefined>(resolve => {
+    const input = document.createElement('input'); input.type = 'file'; input.accept = '.pete,application/octet-stream'; input.style.display = 'none';
+    const finish = (file?: File) => { input.remove(); resolve(file); };
+    input.onchange = () => finish(input.files?.[0]); input.oncancel = () => finish();
+    document.body.appendChild(input); input.click();
+  });
+  if (!file) return undefined;
+  if (file.size > maxBytes) throw new Error('Choose a Pete backup smaller than 128 MiB.');
+  return new Uint8Array(await file.arrayBuffer());
+}

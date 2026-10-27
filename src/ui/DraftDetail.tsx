@@ -40,7 +40,7 @@ export function MediaItem({ draft, item, workspace }: { draft: Draft; item: Atta
   </View>;
 }
 
-export function DraftDetail({ draft, workspace, edit, intro, exportRecord, showMedia = true }: { draft?: Draft; workspace: Workspace; edit: (kind: 'contact' | 'request') => void; intro: () => void; exportRecord: () => void; showMedia?: boolean }) {
+export function DraftDetail({ draft, workspace, edit, intro, backup, exportRecord, showMedia = true }: { draft?: Draft; workspace: Workspace; edit: (kind: 'contact' | 'request') => void; intro: () => void; backup: () => void; exportRecord: () => void; showMedia?: boolean }) {
   if (!draft) return <View style={{ flex: 1, minHeight: 450, gap: 20, padding: 26, justifyContent: 'center', alignItems: 'center' }}>
     <View style={{ width: 86, height: 86, backgroundColor: colors.pale, borderRadius: 26, alignItems: 'center', justifyContent: 'center', transform: [{ rotate: '-6deg' }] }}><Icon name="folder" size={36} color={colors.green} /></View>
     <Txt weight="bold" style={{ textAlign: 'center', fontSize: 19, lineHeight: 28 }}>One visitor. One place.</Txt>
@@ -57,6 +57,6 @@ export function DraftDetail({ draft, workspace, edit, intro, exportRecord, showM
     <View style={{ backgroundColor: colors.pale, borderRadius: 8, padding: 10 }}><Txt style={{ fontSize: 10, lineHeight: 17, color: colors.green }}>{gaps.length ? `${gaps.length} filling requirement${gaps.length === 1 ? '' : 's'} still to ask` : 'Filling requirements captured'}</Txt></View>
     {!!draft.note && <Txt style={{ fontSize: 12, color: colors.muted }}>{draft.note}</Txt>}</View>
     {showMedia && draft.attachments.length > 0 && <View style={{ gap: 10 }}><Eyebrow>CAPTURED MATERIAL · {draft.attachments.length}</Eyebrow>{draft.attachments.map(item => <MediaItem key={item.id} draft={draft} item={item} workspace={workspace} />)}</View>}
-    <View style={{ gap: 8, borderTopWidth: 1, borderColor: colors.line, paddingTop: 18 }}><Button label="WhatsApp introduction" icon="phone" onPress={intro} /><Button label="Export draft metadata" icon="download" kind="quiet" onPress={exportRecord} /><Txt style={{ textAlign: 'center', fontSize: 10, color: colors.muted }}>Preview only. No messages are sent.</Txt></View>
+    <View style={{ gap: 8, borderTopWidth: 1, borderColor: colors.line, paddingTop: 18 }}><Button label="WhatsApp introduction" icon="phone" onPress={intro} /><Txt style={{ textAlign: 'center', fontSize: 10, color: colors.muted }}>Preview only. No messages are sent.</Txt><Button label="Save draft backup" icon="download" kind="secondary" onPress={backup} /><Button label="Export draft metadata" kind="quiet" onPress={exportRecord} /></View>
   </View>;
 }

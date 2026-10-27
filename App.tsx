@@ -20,8 +20,9 @@ import { DraftDetail } from './src/ui/DraftDetail';
 import { Conversation } from './src/ui/Conversation';
 import { QuickNote } from './src/ui/QuickNote';
 import { AuthGate } from './src/ui/AuthGate';
+import { RestoreBackup, SaveBackup } from './src/ui/Backup';
 
-type Kind = CaptureKind | 'settings' | 'followup' | 'note' | 'conversation';
+type Kind = CaptureKind | 'settings' | 'followup' | 'note' | 'conversation' | 'backup' | 'restore';
 type Panel = { kind: Kind; draftId?: string };
 
 function WorkspaceScreen() {
@@ -44,7 +45,7 @@ function WorkspaceScreen() {
   const disabled = workspace.loading || !!workspace.error || busy;
   const list = workspace.drafts.filter(record => `${record.contact.name} ${record.contact.company} ${record.event} ${record.request.product}`.toLowerCase().includes(query.toLowerCase()));
 
-  async function start(kind: Exclude<Kind, 'settings' | 'followup'>, forceNew = false) {
+  async function start(kind: CaptureKind | 'note' | 'conversation', forceNew = false) {
     if (changing.current || disabled) return;
     changing.current = true; setBusy(true); setError(''); setNotice('');
     try {
@@ -68,7 +69,7 @@ function WorkspaceScreen() {
     try { await downloadJson(`pete-draft-${draft.id.slice(0, 8)}.json`, { ...exportDraft(draft), processing: workspace.jobs.filter(job => job.draftId === draft.id).map(({ leaseId, ...job }) => job) }); setNotice('Exported draft and source text. Original media stays on this device.'); }
     catch (e) { setError(e instanceof Error ? e.message : 'Export failed.'); }
   }
-  const details = <DraftDetail draft={draft} workspace={workspace} showMedia={false} edit={kind => draft && setPanel({ kind, draftId: draft.id })} intro={() => draft && setPanel({ kind: 'followup', draftId: draft.id })} exportRecord={exportRecord} />;
+  const details = <DraftDetail draft={draft} workspace={workspace} showMedia={false} edit={kind => draft && setPanel({ kind, draftId: draft.id })} intro={() => draft && setPanel({ kind: 'followup', draftId: draft.id })} backup={() => draft && setPanel({ kind: 'backup', draftId: draft.id })} exportRecord={exportRecord} />;
   const renderRow = (record: Draft) => <Pressable key={record.id} accessibilityRole="button" accessibilityLabel={`Open draft ${titleOf(record)}`} disabled={busy} onPress={() => openDraft(record.id)} style={({ pressed }) => [styles.draftRow, { backgroundColor: pressed || record.id === draft?.id ? colors.sage : colors.paper }]}>
     <View style={styles.avatar}><Txt weight="bold" style={{ color: colors.green }}>{titleOf(record).charAt(0).toUpperCase()}</Txt></View>
     <View style={{ flex: 1, minWidth: 0, gap: 3 }}><Txt weight="bold" style={{ fontSize: 13 }} numberOfLines={1}>{titleOf(record)}</Txt><Txt style={{ fontSize: 11, color: colors.muted }} numberOfLines={1}>{record.contact.company || record.event || 'Details to follow'}</Txt><Txt style={{ fontSize: 10, color: colors.muted }}>{record.attachments.length} captures · {rfqGaps(record.request).length ? 'Request to complete' : 'Request captured'}</Txt></View><Icon name="chevron" size={15} color={colors.muted} />
@@ -99,6 +100,7 @@ function WorkspaceScreen() {
         {!desktop && <><Field label="Find a draft" placeholder="Name, company, event…" value={query} onChangeText={setQuery} /><View style={{ gap: 10 }}>{list.map(renderRow)}</View></>}
         {!list.length && <View style={{ paddingVertical: 20, gap: 8 }}><Icon name="folder" color={colors.muted} /><Txt weight="semibold">{query ? 'No matching conversations.' : 'Your first connection starts here.'}</Txt><Txt style={{ color: colors.muted, fontSize: 12 }}>Voice, card, contact, or request—all four can start a draft.</Txt></View>}
         <Txt style={{ color: colors.muted, fontSize: 11 }}>{pwa.offlineReady ? 'Pete is ready to reopen offline.' : 'Saved drafts and original captures stay on this device.'}</Txt>
+        <Button label="Restore a backup" kind="quiet" disabled={disabled} onPress={() => setPanel({ kind: 'restore' })} />
       </ScrollView> : <View style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
         <View style={styles.conversationHeader}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>{!desktop && <Pressable accessibilityRole="button" accessibilityLabel="Drafts" onPress={() => { setShowLibrary(true); setNotice(''); }} style={{ width: 32, height: 44, alignItems: 'flex-start', justifyContent: 'center' }}><Icon name="back" size={22} /></Pressable>}<View style={{ flex: 1, minWidth: 0, gap: 3 }}>{desktop && <Eyebrow>CURRENT VISITOR</Eyebrow>}<Txt weight="bold" accessibilityRole="header" style={{ fontSize: desktop ? 28 : 25, lineHeight: 34, letterSpacing: -0.8 }} numberOfLines={1}>{titleOf(draft!)}</Txt><Txt style={{ fontSize: 12, color: colors.muted }} numberOfLines={1}>{draft!.contact.company || 'Contact details to follow'}{draft!.event ? ` · ${draft!.event}` : ''}</Txt></View>{desktop && <Button label="Record conversation" icon="mic" kind="secondary" onPress={() => start('conversation')} />}</View>
@@ -117,8 +119,9 @@ function WorkspaceScreen() {
         </View>
       </View>}
     </View>}
-    {panel && <Sheet title={{ contact: 'A new connection.', request: 'What do they need?', card: 'Keep their card.', voice: 'Voice note.', conversation: 'Record the conversation.', note: 'A detail worth keeping.', settings: 'Your details.', followup: 'Keep the conversation going.' }[panel.kind]} subtitle={panelDraft ? `For ${titleOf(panelDraft)}` : 'Your identity and visit context'} locked={locked} onClose={() => { setPanel(null); setLocked(false); }}>
-      {panel.kind === 'settings' ? <><SettingsForm workspace={workspace} done={done} />{pwa.installable && <Button label="Install Pete" icon="download" kind="secondary" onPress={() => { void pwa.install(); }} />}{pwa.offlineReady && <Txt style={{ fontSize: 12, color: colors.muted }}>Ready to reopen offline. On iPhone, use Safari’s Share menu → Add to Home Screen.</Txt>}</> : panelDraft ? <>
+    {panel && <Sheet title={{ contact: 'A new connection.', request: 'What do they need?', card: 'Keep their card.', voice: 'Voice note.', conversation: 'Record the conversation.', note: 'A detail worth keeping.', settings: 'Your details.', followup: 'Keep the conversation going.', backup: 'Keep a backup.', restore: 'Recover a conversation.' }[panel.kind]} subtitle={panelDraft ? `For ${titleOf(panelDraft)}` : panel.kind === 'restore' ? 'Draft and original files, together' : 'Your identity and visit context'} locked={locked} onClose={() => { setPanel(null); setLocked(false); }}>
+      {panel.kind === 'restore' ? <RestoreBackup workspace={workspace} lock={setLocked} done={created => { setPanel(null); setLocked(false); setShowLibrary(false); setSection('conversation'); setNotice(created ? 'Restored draft and originals on this device.' : 'Opened the existing restored draft. Your edits are kept.'); }} /> : panel.kind === 'settings' ? <><SettingsForm workspace={workspace} done={done} /><Button label="Restore a backup" kind="secondary" onPress={() => setPanel({ kind: 'restore' })} />{pwa.installable && <Button label="Install Pete" icon="download" kind="secondary" onPress={() => { void pwa.install(); }} />}{pwa.offlineReady && <Txt style={{ fontSize: 12, color: colors.muted }}>Ready to reopen offline. On iPhone, use Safari’s Share menu → Add to Home Screen.</Txt>}</> : panelDraft ? <>
+        {panel.kind === 'backup' && <SaveBackup draft={panelDraft} workspace={workspace} lock={setLocked} />}
         {panel.kind === 'contact' && <ContactForm key={panelDraft.id} draft={panelDraft} workspace={workspace} done={done} />}
         {panel.kind === 'request' && <RequestForm key={panelDraft.id} draft={panelDraft} workspace={workspace} done={done} />}
         {panel.kind === 'card' && <CardCapture key={panelDraft.id} draft={panelDraft} workspace={workspace} done={done} lock={setLocked} />}

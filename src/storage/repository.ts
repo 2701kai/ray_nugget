@@ -2,6 +2,7 @@ import * as SQLite from 'expo-sqlite';
 import { checkRevision, reduceDraft, type Draft } from '../domain/draft';
 import { defaultPreferences, type DraftRepository, type Preferences } from './types';
 import { newJob, processingRepository, type ProcessingJob, type JobTransaction } from '../processing/jobs';
+import { assertBackupSize, restoredSnapshot, type BackupSnapshot } from '../backup/archive';
 
 // Metro resolves repository.web.ts in the browser. Native metadata and original
 // media share one SQLite transaction, so an attachment cannot appear saved alone.
@@ -90,6 +91,40 @@ export async function openRepository(name = 'ray-nugget-v1.db'): Promise<DraftRe
       return result;
     },
     async media(draftId, attachmentId) { return (await db.getFirstAsync<{ bytes: Uint8Array }>('SELECT bytes FROM media WHERE draftId = ? AND id = ?', draftId, attachmentId))?.bytes; },
+    async snapshot(id) {
+      let result: BackupSnapshot | undefined;
+      await db.withExclusiveTransactionAsync(async tx => {
+        const row = await tx.getFirstAsync<{ json: string }>('SELECT json FROM drafts WHERE id = ?', id);
+        const draft: Draft | undefined = row ? JSON.parse(row.json) : undefined; checkRevision(draft);
+        assertBackupSize(draft);
+        const media: BackupSnapshot['media'] = []; const jobs: ProcessingJob[] = [];
+        for (const attachment of draft.attachments) {
+          const original = await tx.getFirstAsync<{ bytes: Uint8Array }>('SELECT bytes FROM media WHERE draftId = ? AND id = ?', id, attachment.id);
+          const job = await tx.getFirstAsync<{ json: string }>('SELECT json FROM jobs WHERE id = ?', `${id}/${attachment.id}`);
+          if (!original || !job) throw new Error('An original file or its source record is missing. Backup was not created.');
+          media.push({ attachmentId: attachment.id, bytes: original.bytes }); jobs.push(JSON.parse(job.json));
+        }
+        result = { draft, media, jobs };
+      });
+      if (!result) throw new Error('The backup could not be read.');
+      return result;
+    },
+    async restore(backup) {
+      const { draft, media, jobs } = restoredSnapshot(backup);
+      let result: { draft: Draft; created: boolean } | undefined;
+      await db.withExclusiveTransactionAsync(async tx => {
+        const row = await tx.getFirstAsync<{ json: string }>('SELECT json FROM drafts WHERE id = ?', draft.id);
+        if (!row) {
+          await tx.runAsync('INSERT INTO drafts VALUES (?, ?, ?)', draft.id, draft.updatedAt, JSON.stringify(draft));
+          for (const original of media) await tx.runAsync('INSERT INTO media VALUES (?, ?, ?)', draft.id, original.attachmentId, original.bytes);
+          for (const job of jobs) await tx.runAsync('INSERT INTO jobs VALUES (?, ?, ?, ?, ?)', job.id, draft.id, job.kind, job.readyAt, JSON.stringify(job));
+        }
+        await tx.runAsync('INSERT OR REPLACE INTO settings VALUES (?, ?)', 'active-draft', JSON.stringify({ activeDraftId: draft.id }));
+        result = { draft: row ? JSON.parse(row.json) : draft, created: !row };
+      });
+      if (!result) throw new Error('The backup could not be restored.');
+      return result;
+    },
     async preferences() {
       const row = await db.getFirstAsync<{ json: string }>('SELECT json FROM settings WHERE id = ?', 'preferences');
       return row ? JSON.parse(row.json) as Preferences : { ...defaultPreferences, sender: { ...defaultPreferences.sender } };

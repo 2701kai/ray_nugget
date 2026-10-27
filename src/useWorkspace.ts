@@ -10,6 +10,8 @@ import { startProcessing } from './processing/runner';
 import type { ProcessingJob, ReviewOptions } from './processing/jobs';
 import type { Contact } from './domain/draft';
 import { storageName } from './session';
+import { encodeBackup, type VerifiedBackup } from './backup/archive';
+import { digest } from './backup/digest';
 
 export function useWorkspace() {
   const repo = useRef<DraftRepository | null>(null);
@@ -74,6 +76,13 @@ export function useWorkspace() {
   async function reviewJob(id: string, fields: Partial<Contact>, revision: number, options: ReviewOptions = {}) {
     const draft = await repository().reviewJob(id, fields, revision, options); merge(draft); setJobs(await repository().jobs());
   }
-  return { drafts, activeDraftId, activateDraft, jobs, supportedKinds, preferences, loading, error, retry: () => setGeneration(g => g + 1), create, update, attach, savePreferences, getMedia, retryJob, reviewJob };
+  async function backup(id: string) { return encodeBackup(await repository().snapshot(id), digest); }
+  async function restore(backup: VerifiedBackup) {
+    const current = repository();
+    const result = await current.restore(backup);
+    if (repo.current !== current) throw new Error('The signed-in account changed. Reopen Pete to see the restored draft.');
+    merge(result.draft); setJobs(await current.jobs()); setActiveDraftId(result.draft.id); return result;
+  }
+  return { drafts, activeDraftId, activateDraft, jobs, supportedKinds, preferences, loading, error, retry: () => setGeneration(g => g + 1), create, update, attach, savePreferences, getMedia, retryJob, reviewJob, backup, restore };
 }
 export type Workspace = ReturnType<typeof useWorkspace>;
