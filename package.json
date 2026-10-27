@@ -6,13 +6,15 @@
   "packageManager": "bun@1.4.4",
   "scripts": {
     "start": "expo start",
-    "web": "expo start --web --port 8081",
+    "web": "bun run prepare:ocr && expo start --web --port 8081",
     "android": "expo start --android",
     "ios": "expo start --ios",
-    "build:web": "expo export --platform web",
+    "build:web": "bun run prepare:ocr && expo export --platform web",
     "typecheck": "tsc --noEmit",
     "test": "bun test ./tests",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "prepare:ocr": "bun scripts/prepare-ocr.ts",
+    "server": "bun server/index.ts"
   },
   "dependencies": {
     "@expo-google-fonts/manrope": "0.4.2",
@@ -26,16 +28,20 @@
     "expo-image-picker": "~58.0.10",
     "expo-sharing": "~58.0.20",
     "expo-sqlite": "~58.0.14",
+    "google-auth-library": "^11.3.1",
     "idb": "8.0.4",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "react-native": "0.88.0",
     "react-native-safe-area-context": "~5.10.1",
     "react-native-svg": "15.16.0",
-    "react-native-web": "^0.21.4"
+    "react-native-web": "^0.21.4",
+    "tesseract.js": "7.0.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.64.1",
+    "@tesseract.js-data/deu": "1.0.0",
+    "@tesseract.js-data/eng": "1.0.0",
     "@types/bun": "^1.4.4",
     "@types/react": "~19.3.0",
     "fake-indexeddb": "6.2.6",

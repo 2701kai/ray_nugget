@@ -1,5 +1,10 @@
 import { expect, test, type Page } from '@playwright/test';
 
+// Never send automated browser fixtures to the live company transcription service.
+test.beforeEach(async ({ page }) => {
+  await page.route('http://127.0.0.1:8091/**', route => route.fulfill({ json: { state: 'complete', text: 'Synthetic conversation. We need glass bottles at 2400 bottles per hour.', engine: 'Synthetic browser test processor' }, headers: { 'Access-Control-Allow-Origin': 'http://localhost:8081' } }));
+});
+
 async function open(page: Page) {
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'Capture contact', exact: true })).toBeVisible();
@@ -109,10 +114,59 @@ test('conversation consent and microphone denial do not produce a saved recordin
   await open(page);
   await page.getByRole('button', { name: 'Capture a voice note', exact: true }).click();
   await page.getByRole('radio', { name: 'A conversation', exact: true }).click();
+  await expect(page.getByText('Up to 30 minutes. Stop and save when you are done.', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Start recording', exact: true })).toBeDisabled();
   await page.getByRole('checkbox', { name: 'The other person agreed to this recording', exact: true }).click();
   await page.getByRole('button', { name: 'Start recording', exact: true }).click();
   await expect(page.getByText(/Microphone access is off/)).toBeVisible();
   await page.getByRole('button', { name: 'Close', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Play recording', exact: true })).toHaveCount(0);
+});
+
+test('real local OCR produces reviewable fields without replacing an existing visitor', async ({ page }) => {
+  test.setTimeout(90000);
+  await open(page);
+  const png = await page.evaluate(() => {
+    const canvas = document.createElement('canvas'); canvas.width = 1200; canvas.height = 520;
+    const context = canvas.getContext('2d')!;
+    context.fillStyle = 'white'; context.fillRect(0, 0, canvas.width, canvas.height);
+    context.fillStyle = '#111'; context.font = '38px Arial';
+    ['Name: Mara Lind', 'Company: Synthetic Bottling GmbH', 'mara@example.test', '+1 202 555 0182'].forEach((line, index) => context.fillText(line, 60, 100 + index * 100));
+    return canvas.toDataURL('image/png').split(',')[1];
+  });
+  await page.getByRole('button', { name: 'Capture contact', exact: true }).click();
+  await contact(page, 'Manually corrected visitor');
+  await page.getByRole('button', { name: 'Capture business card', exact: true }).click();
+  const chooser = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: 'Choose a card photo', exact: true }).click();
+  await (await chooser).setFiles({ name: 'synthetic-readable-card.png', mimeType: 'image/png', buffer: Buffer.from(png, 'base64') });
+  await expect(page.getByRole('button', { name: 'Review extracted text', exact: true })).toBeVisible({ timeout: 60000 });
+  await page.getByRole('button', { name: 'Review extracted text', exact: true }).click();
+  await expect(page.getByLabel('Email', { exact: true })).toHaveValue('mara@example.test');
+  await expect(page.getByRole('checkbox', { name: 'Use company', exact: true })).not.toBeChecked();
+  await expect(page.getByRole('checkbox', { name: 'Use full name', exact: true })).not.toBeChecked();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: test.info().outputPath('ocr-review-mobile.png'), animations: 'disabled' });
+  await page.getByRole('checkbox', { name: 'Use email', exact: true }).click();
+  await page.getByRole('button', { name: 'Apply selected details', exact: true }).click();
+  await expect(page.getByText('mara@example.test', { exact: true })).toBeVisible();
+  await expect(page.getByText('Manually corrected visitor', { exact: true }).last()).toBeVisible();
+  await page.reload();
+  await page.getByRole('button', { name: 'Open draft Manually corrected visitor', exact: true }).click();
+  await expect(page.getByText('Reviewed · source text kept', { exact: true })).toBeVisible();
+});
+
+test('a returned transcript is reviewed before being appended to conversation notes', async ({ page }) => {
+  await open(page);
+  await page.getByRole('button', { name: 'Capture a voice note', exact: true }).click();
+  await page.getByRole('button', { name: 'Start recording', exact: true }).click();
+  await expect(page.getByText(/^00:0[1-3]$/)).toBeVisible();
+  await page.getByRole('button', { name: 'Stop and save recording', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Review extracted text', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Review extracted text', exact: true }).click();
+  await page.getByRole('checkbox', { name: 'Append transcript to conversation notes', exact: true }).click();
+  await page.getByRole('button', { name: 'Apply selected details', exact: true }).click();
+  await page.getByRole('button', { name: 'Edit request', exact: true }).click();
+  await expect(page.getByLabel('Conversation notes', { exact: true })).toHaveValue('Synthetic conversation. We need glass bottles at 2400 bottles per hour.');
 });

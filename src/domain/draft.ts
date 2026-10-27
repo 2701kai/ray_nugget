@@ -26,7 +26,7 @@ export type Followup = {
   message: string;
   preparedAt: string;
 };
-type Origin = { source: 'manual' | 'extraction'; at: string; attachmentId?: string; jobId?: string };
+type Origin = { source: 'manual' | 'extraction'; at: string; attachmentId?: string; jobId?: string; reviewedAt?: string };
 export type Draft = {
   schemaVersion: 1;
   id: string;
@@ -49,10 +49,14 @@ export type DraftAction =
   | { type: 'edit'; patch: Patch }
   | { type: 'attach'; attachment: Attachment }
   | { type: 'enrich'; jobId: string; attachmentId: string; fields: Partial<Contact> }
+  | { type: 'reviewExtraction'; jobId: string; attachmentId: string; fields: Partial<Contact>; transcript?: string }
   | { type: 'followup'; sender: Sender; operationId: string };
 
 export const MAX_MEDIA_BYTES = 15 * 1024 * 1024;
 export const MAX_RECORDING_SECONDS = 180;
+export const MAX_CONVERSATION_SECONDS = 30 * 60;
+export const MAX_VOICE_BYTES = 60 * 1024 * 1024;
+export const mediaLimit = (kind: Attachment['kind']) => kind === 'voice' ? MAX_VOICE_BYTES : MAX_MEDIA_BYTES;
 
 export function createDraft(id: string, entry: CaptureKind, event: string, now: string): Draft {
   return {
@@ -119,7 +123,7 @@ export function reduceDraft(draft: Draft, action: DraftAction, now: string): Dra
     }
   } else if (action.type === 'attach') {
     const attachment = action.attachment;
-    if (attachment.bytes <= 0 || attachment.bytes > MAX_MEDIA_BYTES) throw new Error('Choose a non-empty file smaller than 15 MB.');
+    if (attachment.bytes <= 0 || attachment.bytes > mediaLimit(attachment.kind)) throw new Error(`Choose a non-empty file smaller than ${mediaLimit(attachment.kind) / 1024 / 1024} MiB.`);
     if (attachment.kind === 'voice' && attachment.voiceMode === 'conversation' && !attachment.consentConfirmed) throw new Error('Confirm consent before saving a conversation recording.');
     if (draft.attachments.some(a => a.id === attachment.id || (a.sha256 === attachment.sha256 && a.kind === attachment.kind))) return draft;
     next.attachments.push(attachment);
@@ -137,6 +141,21 @@ export function reduceDraft(draft: Draft, action: DraftAction, now: string): Dra
         next.contact[field] = value;
         next.provenance[key] = { source: 'extraction', at: now, attachmentId: action.attachmentId, jobId: action.jobId };
       }
+    }
+    next.appliedJobs.push(action.jobId);
+  } else if (action.type === 'reviewExtraction') {
+    if (draft.appliedJobs.includes(action.jobId)) return draft;
+    if (!draft.attachments.some(a => a.id === action.attachmentId)) throw new Error('The extraction source does not belong to this draft.');
+    for (const [field, value] of Object.entries(action.fields)) {
+      if (!Object.hasOwn(next.contact, field) || typeof value !== 'string' || value.length > 2000) throw new Error('Invalid reviewed contact field.');
+      next.contact[field as keyof Contact] = value.trim();
+      next.provenance[`contact.${field}`] = { source: 'extraction', at: now, reviewedAt: now, attachmentId: action.attachmentId, jobId: action.jobId };
+    }
+    if (action.transcript) {
+      const note = [next.note, action.transcript].filter(Boolean).join('\n\n');
+      if (note.length > 10000) throw new Error('The transcript and existing notes exceed 10,000 characters. Copy the relevant parts instead.');
+      next.note = note;
+      next.provenance.note = { source: 'extraction', at: now, reviewedAt: now, attachmentId: action.attachmentId, jobId: action.jobId };
     }
     next.appliedJobs.push(action.jobId);
   } else {

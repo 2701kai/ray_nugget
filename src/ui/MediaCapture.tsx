@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { AppState, Platform, Pressable, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { RecordingPresets, requestRecordingPermissionsAsync, setAudioModeAsync, useAudioRecorder, useAudioRecorderState } from 'expo-audio';
-import { MAX_MEDIA_BYTES, MAX_RECORDING_SECONDS, type Draft } from '../domain/draft';
+import { MAX_MEDIA_BYTES, MAX_RECORDING_SECONDS, MAX_CONVERSATION_SECONDS, type Draft } from '../domain/draft';
 import type { Workspace } from '../useWorkspace';
 import { Button, Choice, ErrorNotice, Txt } from './primitives';
 import { colors, fonts } from './theme';
@@ -35,7 +35,7 @@ export function CardCapture({ draft, workspace, done, lock }: { draft: Draft; wo
     <ErrorNotice message={error} />
     {Platform.OS !== 'web' && <Button label={busy ? 'Saving photo…' : 'Take a photo'} icon="camera" disabled={busy} onPress={() => pick(true)} />}
     <Button label={busy ? 'Saving photo…' : 'Choose a card photo'} icon="card" disabled={busy} onPress={() => pick(false)} kind={Platform.OS === 'web' ? 'primary' : 'secondary'} />
-    <Txt style={{ fontSize: 12, lineHeight: 20, color: colors.muted }}>The original photo is saved to this draft. Automatic text extraction is not connected yet; add the contact details manually.</Txt>
+    <Txt style={{ fontSize: 12, lineHeight: 20, color: colors.muted }}>The original photo is saved first. In the browser preview, Pete reads the card on this device, then lets you review the text and contact suggestions.</Txt>
   </>;
 }
 
@@ -58,9 +58,10 @@ export function VoiceCapture({ draft, workspace, done, lock }: { draft: Draft; w
   const status = useAudioRecorderState(recorder, 250);
   const finishRef = useRef<() => void>(() => undefined);
   const seconds = Math.floor(status.durationMillis / 1000);
+  const limit = mode === 'conversation' ? MAX_CONVERSATION_SECONDS : MAX_RECORDING_SECONDS;
   useEffect(() => {
-    if (phase === 'recording' && seconds >= MAX_RECORDING_SECONDS) finishRef.current();
-  }, [seconds, phase]);
+    if (phase === 'recording' && seconds >= limit) finishRef.current();
+  }, [seconds, phase, limit]);
   useEffect(() => {
     const sub = AppState.addEventListener('change', state => { if (state !== 'active' && recorder.isRecording) finishRef.current(); });
     return () => { sub.remove(); lock(false); };
@@ -105,10 +106,10 @@ export function VoiceCapture({ draft, workspace, done, lock }: { draft: Draft; w
     <View style={{ alignItems: 'center', gap: 16, padding: 28, borderRadius: 20, backgroundColor: colors.pale }}>
       <View style={{ width: 74, height: 74, borderRadius: 37, alignItems: 'center', justifyContent: 'center', backgroundColor: recording ? colors.green : colors.sage }}><Icon name={recording ? 'mic' : 'clock'} size={30} color={recording ? colors.paper : colors.green} /></View>
       <Txt weight="semibold" style={{ fontSize: 36, lineHeight: 44, fontVariant: ['tabular-nums'], fontFamily: fonts.medium }}>{String(Math.floor(seconds / 60)).padStart(2, '0')}:{String(seconds % 60).padStart(2, '0')}</Txt>
-      <Txt style={{ fontSize: 12, color: colors.muted }}>{phase === 'saving' ? 'Saving the original recording…' : phase === 'preparing' ? 'Preparing microphone…' : recording ? 'Recording · stop to save to this visitor' : phase === 'retry' ? 'Recording kept here · retry saving' : 'A short note is all you need. Up to 3 minutes.'}</Txt>
+      <Txt style={{ fontSize: 12, color: colors.muted }}>{phase === 'saving' ? 'Saving the original recording…' : phase === 'preparing' ? 'Preparing microphone…' : recording ? 'Recording · stop to save to this visitor' : phase === 'retry' ? 'Recording kept here · retry saving' : mode === 'conversation' ? 'Up to 30 minutes. Stop and save when you are done.' : 'A short note is all you need. Up to 3 minutes.'}</Txt>
     </View>
     <ErrorNotice message={error} />
     <Button label={recording ? 'Stop and save recording' : phase === 'retry' ? 'Retry saving recording' : phase === 'saving' ? 'Saving recording…' : phase === 'preparing' ? 'Preparing microphone…' : 'Start recording'} icon={recording ? 'stop' : 'mic'} disabled={phase === 'saving' || phase === 'preparing' || (mode === 'conversation' && !consent)} onPress={recording || phase === 'retry' ? finish : start} />
-    <Txt style={{ color: colors.muted, fontSize: 12, lineHeight: 20 }}>Audio stays on this device. Transcription is not connected yet. Leaving the app stops and attempts to save the recording; keep the app open until saving finishes.</Txt>
+    <Txt style={{ color: colors.muted, fontSize: 12, lineHeight: 20 }}>{workspace.supportedKinds.includes('voice') ? 'The original stays on this device. A copy is sent to your company’s Google Cloud Speech service in the EU for transcription. Review the result before using it.' : 'The original stays on this device. Transcription is not configured on this platform.'} Leaving the app stops and attempts to save the recording; keep the app open until saving finishes.</Txt>
   </>;
 }

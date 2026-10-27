@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Image, Pressable, View } from 'react-native';
+import { Image, View } from 'react-native';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { rfqGaps, titleOf, type Attachment, type Draft } from '../domain/draft';
 import type { Workspace } from '../useWorkspace';
@@ -7,6 +7,7 @@ import { mediaUri, releaseUri } from '../media/files';
 import { colors } from './theme';
 import { Button, Eyebrow, Txt } from './primitives';
 import { Icon } from './Icon';
+import { ProcessingStatus } from './ExtractionReview';
 
 function VoicePlayer({ uri }: { uri: string }) {
   const player = useAudioPlayer(uri);
@@ -17,7 +18,8 @@ function VoicePlayer({ uri }: { uri: string }) {
   }} style={{ alignSelf: 'flex-start', paddingHorizontal: 0, minHeight: 32 }} />;
 }
 
-function MediaItem({ draftId, item, workspace }: { draftId: string; item: Attachment; workspace: Workspace }) {
+function MediaItem({ draft, item, workspace }: { draft: Draft; item: Attachment; workspace: Workspace }) {
+  const draftId = draft.id;
   const [uri, setUri] = useState('');
   const [error, setError] = useState('');
   useEffect(() => {
@@ -33,7 +35,8 @@ function MediaItem({ draftId, item, workspace }: { draftId: string; item: Attach
     {item.kind === 'card' && uri && <Image source={{ uri }} accessibilityLabel={item.name} resizeMode="contain" style={{ width: '100%', height: 110, backgroundColor: colors.background, borderRadius: 8 }} />}
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}><Icon name={item.kind === 'card' ? 'card' : 'mic'} size={16} color={colors.green} /><Txt weight="semibold" style={{ fontSize: 12, flex: 1 }} numberOfLines={1}>{item.name}</Txt><Txt style={{ fontSize: 10, color: colors.muted }}>{Math.max(1, Math.round(item.bytes / 1024))} KB</Txt></View>
     {item.kind === 'voice' && uri && <VoicePlayer uri={uri} />}
-    <Txt style={{ fontSize: 10, color: error ? colors.danger : colors.muted, lineHeight: 15 }}>{error || (item.kind === 'card' ? 'Original saved · text extraction not connected' : 'Original saved · transcription not connected')}</Txt>
+    <Txt style={{ fontSize: 10, color: error ? colors.danger : colors.muted, lineHeight: 15 }}>{error || 'Original saved on this device'}</Txt>
+    <ProcessingStatus draft={draft} attachmentId={item.id} workspace={workspace} />
   </View>;
 }
 
@@ -53,7 +56,7 @@ export function DraftDetail({ draft, workspace, edit, intro, exportRecord }: { d
     ].map(([label, value]) => <View key={label} style={{ flexDirection: 'row', gap: 12 }}><Txt style={{ color: colors.muted, fontSize: 11, width: 80 }}>{label}</Txt><Txt style={{ fontSize: 12, flex: 1 }}>{value || 'Still to ask'}</Txt></View>)}
     <View style={{ backgroundColor: colors.pale, borderRadius: 8, padding: 10 }}><Txt style={{ fontSize: 10, lineHeight: 17, color: colors.green }}>{gaps.length ? `${gaps.length} filling requirement${gaps.length === 1 ? '' : 's'} still to ask` : 'Filling requirements captured'}</Txt></View>
     {!!draft.note && <Txt style={{ fontSize: 12, color: colors.muted }}>{draft.note}</Txt>}</View>
-    {draft.attachments.length > 0 && <View style={{ gap: 10 }}><Eyebrow>CAPTURED MATERIAL · {draft.attachments.length}</Eyebrow>{draft.attachments.map(item => <MediaItem key={item.id} draftId={draft.id} item={item} workspace={workspace} />)}</View>}
+    {draft.attachments.length > 0 && <View style={{ gap: 10 }}><Eyebrow>CAPTURED MATERIAL · {draft.attachments.length}</Eyebrow>{draft.attachments.map(item => <MediaItem key={item.id} draft={draft} item={item} workspace={workspace} />)}</View>}
     <View style={{ gap: 8, borderTopWidth: 1, borderColor: colors.line, paddingTop: 18 }}><Button label="WhatsApp introduction" icon="phone" onPress={intro} /><Button label="Export draft metadata" icon="download" kind="quiet" onPress={exportRecord} /><Txt style={{ textAlign: 'center', fontSize: 10, color: colors.muted }}>Preview only. No messages are sent.</Txt></View>
   </View>;
 }

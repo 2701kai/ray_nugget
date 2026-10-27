@@ -1,0 +1,98 @@
+import { checkRevision, reduceDraft, type Attachment, type Contact, type Draft } from '../domain/draft';
+
+export const LEASE_MS = 30_000;
+export const MAX_ATTEMPTS = 3;
+export const NEVER = Number.MAX_SAFE_INTEGER;
+export type Extraction = { text: string; fields: Partial<Contact>; engine: string };
+export type ProcessingJob = {
+  id: string; draftId: string; attachmentId: string; kind: Attachment['kind'];
+  state: 'queued' | 'running' | 'failed' | 'complete';
+  attempts: number; readyAt: number; createdAt: number; updatedAt: number;
+  leaseId?: string; error?: string; result?: Extraction; reviewedAt?: number;
+};
+export function newJob(draftId: string, attachment: Attachment, now = Date.now()): ProcessingJob {
+  return { id: `${draftId}/${attachment.id}`, draftId, attachmentId: attachment.id, kind: attachment.kind, state: 'queued', attempts: 0, readyAt: now, createdAt: now, updatedAt: now };
+}
+export interface JobTransaction {
+  job(id: string): Promise<ProcessingJob | undefined>;
+  putJob(job: ProcessingJob): Promise<void>;
+  next(kinds: Attachment['kind'][], now: number): Promise<ProcessingJob | undefined>;
+  draft(id: string): Promise<Draft | undefined>;
+  putDraft(draft: Draft): Promise<void>;
+}
+export interface JobDriver {
+  atomic<T>(run: (tx: JobTransaction) => Promise<T>): Promise<T>;
+  list(): Promise<ProcessingJob[]>;
+}
+export function processingRepository(driver: JobDriver) {
+  const owns = (job: ProcessingJob | undefined, leaseId: string, now: number): job is ProcessingJob => !!job && job.state === 'running' && job.leaseId === leaseId && job.readyAt > now;
+  return {
+    jobs: () => driver.list(),
+    claimJob(kinds: Attachment['kind'][], leaseId: string, now = Date.now()) {
+      return driver.atomic(async tx => {
+        for (;;) {
+          const job = await tx.next(kinds, now);
+          if (!job) return undefined;
+          if (job.attempts >= MAX_ATTEMPTS) {
+            await tx.putJob({ ...job, state: 'failed', readyAt: NEVER, leaseId: undefined, error: 'Processing was interrupted repeatedly. Retry when this device is ready.', updatedAt: now });
+            continue;
+          }
+          const claimed: ProcessingJob = { ...job, state: 'running', attempts: job.attempts + 1, leaseId, readyAt: now + LEASE_MS, updatedAt: now, error: undefined };
+          await tx.putJob(claimed); return claimed;
+        }
+      });
+    },
+    renewJob(id: string, leaseId: string, now = Date.now()) {
+      return driver.atomic(async tx => {
+        const job = await tx.job(id);
+        if (!owns(job, leaseId, now)) return false;
+        await tx.putJob({ ...job, readyAt: now + LEASE_MS, updatedAt: now }); return true;
+      });
+    },
+    finishJob(id: string, leaseId: string, result: Extraction, now = Date.now()) {
+      return driver.atomic(async tx => {
+        const job = await tx.job(id);
+        if (!owns(job, leaseId, now)) return false;
+        if (typeof result.text !== 'string' || result.text.length > 50_000 || !result.engine || result.engine.length > 100) throw new Error('Invalid extraction result.');
+        for (const [key, value] of Object.entries(result.fields)) {
+          if (!['name', 'company', 'phone', 'email'].includes(key) || typeof value !== 'string' || value.length > 2000) throw new Error('Invalid extracted field.');
+        }
+        const draft = await tx.draft(job.draftId);
+        if (!draft?.attachments.some(a => a.id === job.attachmentId)) throw new Error('The extraction source no longer belongs to this visitor.');
+        await tx.putJob({ ...job, state: 'complete', readyAt: NEVER, leaseId: undefined, result, updatedAt: now });
+        return true;
+      });
+    },
+    failJob(id: string, leaseId: string, error: string, now = Date.now()) {
+      return driver.atomic(async tx => {
+        const job = await tx.job(id);
+        if (!owns(job, leaseId, now)) return false;
+        const failed = job.attempts >= MAX_ATTEMPTS;
+        await tx.putJob({ ...job, state: failed ? 'failed' : 'queued', readyAt: failed ? NEVER : now + 5000 * job.attempts ** 2, leaseId: undefined, error: error.slice(0, 500), updatedAt: now });
+        return true;
+      });
+    },
+    retryJob(id: string, now = Date.now()) {
+      return driver.atomic(async tx => {
+        const job = await tx.job(id);
+        if (!job) throw new Error('Processing task not found.');
+        if (job.state === 'complete' || (job.state === 'running' && job.readyAt > now)) return;
+        await tx.putJob({ ...job, state: 'queued', attempts: 0, readyAt: now, leaseId: undefined, error: undefined, updatedAt: now });
+      });
+    },
+    reviewJob(id: string, fields: Partial<Contact>, revision: number, appendTranscript = false, now = Date.now()) {
+      return driver.atomic(async tx => {
+        const job = await tx.job(id);
+        if (!job?.result || job.state !== 'complete') throw new Error('There is no result to review yet.');
+        const draft = await tx.draft(job.draftId);
+        if (job.reviewedAt !== undefined && draft) return draft;
+        checkRevision(draft, revision);
+        const next = reduceDraft(draft, { type: 'reviewExtraction', jobId: job.id, attachmentId: job.attachmentId, fields, transcript: appendTranscript && job.kind === 'voice' ? job.result.text : undefined }, new Date(now).toISOString());
+        await tx.putDraft(next);
+        await tx.putJob({ ...job, reviewedAt: now, updatedAt: now });
+        return next;
+      });
+    },
+  };
+}
+export type ProcessingRepository = ReturnType<typeof processingRepository>;

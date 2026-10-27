@@ -19,5 +19,5 @@ export default defineConfig({
     screenshot: 'only-on-failure',
     trace: 'retain-on-failure',
   },
-  webServer: { command: 'bun run web --host localhost', url: 'http://localhost:8081', reuseExistingServer: true, timeout: 90000 },
+  webServer: { command: 'bun run web --host localhost', env: { EXPO_PUBLIC_PROCESSING_URL: 'http://127.0.0.1:8091' }, url: 'http://localhost:8081', reuseExistingServer: true, timeout: 90000 },
 });
