@@ -10,9 +10,13 @@ may still be in progress. The repository remains `ray_nugget`; the app is named 
 
 ## Hosted pilot
 
-Create a Pete account with your `@bevmaq.com` email and a separate password of at
-least 12 characters, verify the email, and return to Pete. Only verified company
-accounts can open the workspace or use transcription. Sign out in Settings.
+Use **Continue with Google** and select your `@bevmaq.com` work account.
+Only verified company accounts can open the workspace or use transcription.
+Sign out in Settings. The Google account picker hints at the company domain;
+the application and API enforce it independently. Google sign-in with an existing
+account's email keeps its Firebase UID and corresponding local drafts.
+The Google screen currently uses this company's shared OAuth brand,
+**CRM Email Processing**. Pete requests only basic sign-in scopes.
 Each account has its own local browser database. Sign in online once and wait for
 the offline shell to be ready before taking the app offline.
 
@@ -47,6 +51,22 @@ The hosted build uses `dist-hosted/`, leaving the localhost build and its data
 alone. Only Firebase's public browser configuration enters the bundle. The release
 script checks the site's associated app before publishing, and sends only static
 assets. Reserved Firebase `/__/` handlers and `/api/` bypass the service worker.
+
+Google sign-in configuration is in `deploy/firebase-auth.json`. Provision it with:
+
+```sh
+bunx firebase-tools@15.34.1 deploy --only auth --project bevmaq-platform \
+  --config deploy/firebase-auth.json --non-interactive
+```
+
+Firebase may require the deploying account to accept its terms in the console
+before provisioning Google OAuth. All three Hosting domains have explicit OAuth
+redirect URIs. The browser uses its current Hosting domain as `authDomain` so
+redirects work with third-party storage restrictions. The config enables Google;
+it does not disable previously enabled providers. Email/password has been disabled
+in Firebase Auth for this deployment. Existing users and UIDs are retained; do not
+delete/recreate accounts to switch providers. After an update, close and reopen
+existing Pete tabs to activate the waiting service worker without clearing data.
 
 To update the API, build and deploy its container with the dedicated service identity:
 
@@ -191,6 +211,7 @@ transcript is reviewable and the request fields are editable manually.
 ```sh
 bun run typecheck
 bun test
+bun run test:auth
 bun run build:web
 
 # Install the test browser once, then run browser workflows.

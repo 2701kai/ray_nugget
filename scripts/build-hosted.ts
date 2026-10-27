@@ -8,6 +8,7 @@ if (data.projectId !== target.project || data.appId !== target.webApp) throw new
 const env = { ...process.env, EXPO_NO_DOTENV: '1', NODE_ENV: 'production', PETE_WEB_OUTPUT: 'dist-hosted',
   EXPO_PUBLIC_PROCESSING_URL: '/api', EXPO_PUBLIC_FIREBASE_API_KEY: data.apiKey, EXPO_PUBLIC_FIREBASE_PROJECT_ID: data.projectId,
   EXPO_PUBLIC_FIREBASE_APP_ID: data.appId, EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN: `${target.site}.firebaseapp.com`,
+  EXPO_PUBLIC_FIREBASE_HOSTED_DOMAINS: `${target.site}.web.app,${target.site}.firebaseapp.com,${target.domain}`,
 };
 for (const command of [['bun', 'scripts/prepare-ocr.ts'], ['bunx', '--no-install', 'expo', 'export', '--platform', 'web', '--output-dir', 'dist-hosted'], ['bun', 'scripts/prepare-pwa.ts']]) {
   const child = Bun.spawn(command, { env, stdout: 'inherit', stderr: 'inherit' });

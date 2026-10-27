@@ -17,6 +17,7 @@
     "typecheck": "tsc --noEmit",
     "test": "bun test ./tests",
     "test:e2e": "playwright test",
+    "test:auth": "bunx firebase-tools@15.34.1 emulators:exec --only auth --project demo-pete-sso --config integration/firebase.json 'bun test ./integration/google-auth.test.ts'",
     "prepare:ocr": "bun scripts/prepare-ocr.ts",
     "server": "bun server/index.ts"
   },

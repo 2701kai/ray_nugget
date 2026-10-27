@@ -1,0 +1,15 @@
+{
+  "auth": {
+    "providers": {
+      "googleSignIn": {
+        "oAuthBrandDisplayName": "BEVMAQ",
+        "supportEmail": "dev@bevmaq.com",
+        "authorizedRedirectUris": [
+          "https://bevmaq-platform.firebaseapp.com/__/auth/handler",
+          "https://bevmaq-platform.web.app/__/auth/handler",
+          "https://pete.bevmaq.com/__/auth/handler"
+        ]
+      }
+    }
+  }
+}

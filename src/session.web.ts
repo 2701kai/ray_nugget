@@ -1,13 +1,26 @@
 import { initializeApp } from 'firebase/app';
-import { initializeAuth, indexedDBLocalPersistence, browserLocalPersistence, signOut } from 'firebase/auth';
+import { initializeAuth, indexedDBLocalPersistence, browserLocalPersistence, browserPopupRedirectResolver, GoogleAuthProvider, getRedirectResult, signInWithRedirect, signOut } from 'firebase/auth';
 
 const apiKey = process.env.EXPO_PUBLIC_FIREBASE_API_KEY;
+// Keep redirects on the app's Hosting domain for browsers that partition storage.
+const hostedDomains = (process.env.EXPO_PUBLIC_FIREBASE_HOSTED_DOMAINS || '').split(',');
+const authDomain = typeof window !== 'undefined' && hostedDomains.includes(window.location.hostname)
+  ? window.location.hostname : process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN;
 export const auth = apiKey ? initializeAuth(initializeApp({
   apiKey,
   projectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID,
   appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID,
-  authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN,
-}), { persistence: [indexedDBLocalPersistence, browserLocalPersistence] }) : undefined;
+  authDomain,
+}), { persistence: [indexedDBLocalPersistence, browserLocalPersistence], popupRedirectResolver: browserPopupRedirectResolver }) : undefined;
+export async function signInWithGoogle() {
+  if (!auth) return;
+  const provider = new GoogleAuthProvider();
+  // Account-picker hint only. UI and API still enforce the company domain.
+  provider.setCustomParameters({ hd: 'bevmaq.com', prompt: 'select_account' });
+  auth.useDeviceLanguage();
+  await signInWithRedirect(auth, provider);
+}
+export const finishGoogleSignIn = async () => { if (auth) await getRedirectResult(auth); };
 export const sessionEmail = () => auth?.currentUser?.email ?? undefined;
 export function storageName() {
   if (!auth) return undefined; // Keep the original local-preview database untouched.
