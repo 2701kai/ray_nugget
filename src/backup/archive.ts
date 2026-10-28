@@ -1,3 +1,4 @@
+import { requestKeys, requestTextKeys, qualificationKeys, parseCaptureContext, parseQuestionDecision } from '../domain/requirements';
 import { mediaLimit, type Attachment, type Contact, type Draft } from '../domain/draft';
 import { detailKeys, requestFields } from '../domain/details';
 import { NEVER, newJob, validateExtraction, type Extraction, type ProcessingJob } from '../processing/jobs';
@@ -54,7 +55,6 @@ function unique<T>(values: T[]): T[] {
   return values;
 }
 const contactKeys = ['name', 'company', 'email', 'phone'] as const;
-const requestKeys = ['intent', 'product', 'packaging', 'throughput', 'unit'] as const;
 function extraction(value: unknown): Extraction {
   const raw = object(value); const fields = object(raw.fields); const parsed: Partial<Contact> = {};
   for (const field of Object.keys(fields)) parsed[oneOf(field, contactKeys)] = string(fields[field]);
@@ -64,7 +64,7 @@ function extraction(value: unknown): Extraction {
   if (raw.request !== undefined) {
     const request = object(raw.request);
     result.request = {};
-    for (const field of ['intent', 'product', 'packaging'] as const) if (request[field] !== undefined) Object.assign(result.request, { [field]: string(request[field]) });
+    for (const field of ['intent', ...requestTextKeys] as const) if (request[field] !== undefined) Object.assign(result.request, { [field]: string(request[field]) });
     if (request.capacity !== undefined) {
       const capacity = object(request.capacity);
       result.request.capacity = { throughput: string(capacity.throughput), unit: oneOf(capacity.unit, ['units/h', 'bottles/h', 'L/h']) };
@@ -92,11 +92,15 @@ function manifest(value: unknown): Omit<BackupSnapshot, 'media'> {
     request: { intent: oneOf(request.intent, ['buy', 'sell', 'unspecified']), product: string(request.product), packaging: string(request.packaging), throughput: string(request.throughput), unit: oneOf(request.unit, ['', 'units/h', 'bottles/h', 'L/h']) },
     note: string(raw.note, 10000), attachments: [], provenance: {}, appliedJobs: [], suggestions: [],
   };
+  for (const key of qualificationKeys) if (request[key] !== undefined) draft.request[key] = string(request[key]);
+  if (raw.conversationVersion !== undefined) { if (raw.conversationVersion !== 1) throw invalid(); draft.conversationVersion = 1; }
+  if (raw.rayQuestions !== undefined) { draft.rayQuestions = array(raw.rayQuestions, 300).map(parseQuestionDecision); unique(draft.rayQuestions.map(q => q.id)); }
   draft.attachments = array(raw.attachments).map(value => {
     const a = object(value); const kind = oneOf(a.kind, ['card', 'voice']);
     const attachment: Attachment = { id: id(a.id), kind, name: string(a.name, 1000), mimeType: string(a.mimeType, 150), bytes: integer(a.bytes, mediaLimit(kind)), sha256: hash(a.sha256), capturedAt: date(a.capturedAt) };
     // Originals are image/audio data only; do not allow imported HTML/SVG documents.
     if (!attachment.bytes || !(kind === 'card' ? /^image\/(?:png|jpeg|jpg|webp|heic|heif|gif|bmp)$/i : /^audio\/(?:webm|ogg|mp4|mpeg|wav|x-wav|aac|m4a)(?:;.*)?$/i).test(attachment.mimeType)) throw invalid();
+    if (a.context !== undefined) { if (kind !== 'voice') throw invalid(); attachment.context = parseCaptureContext(a.context); }
     if (a.voiceMode !== undefined) attachment.voiceMode = oneOf(a.voiceMode, ['memo', 'conversation']);
     if (a.consentConfirmed !== undefined) {
       if (typeof a.consentConfirmed !== 'boolean') throw invalid();
@@ -140,6 +144,9 @@ function manifest(value: unknown): Omit<BackupSnapshot, 'media'> {
     unique(draft.ray.map(a => a.id));
     if (draft.ray.some(a => a.draftId !== draft.id)) throw invalid();
   }
+  for (const a of draft.attachments) if (a.context?.consultationId && !draft.ray?.some(r => r.id === a.context!.consultationId && a.context!.questions.every(q => r.questions.includes(q)))) throw invalid();
+  for (const q of draft.rayQuestions ?? []) if (!draft.ray?.some(r => r.id === q.consultationId && r.questions.includes(q.question))) throw invalid();
+  if (draft.rayQuestions?.length || draft.attachments.some(a => a.context) || qualificationKeys.some(k => draft.request[k] !== undefined)) draft.conversationVersion = 1;
   const jobs = array(root.jobs).map(value => {
     const j = object(value); const attachment = draft.attachments.find(a => a.id === j.attachmentId);
     if (!attachment) throw invalid();

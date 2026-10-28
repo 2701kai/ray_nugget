@@ -1,3 +1,4 @@
+import { qualificationKeys, requestLabels } from '../domain/requirements';
 import { useState } from 'react';
 import { View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
@@ -42,6 +43,7 @@ export function ContactForm({ draft, workspace, done }: { draft: Draft; workspac
 export function RequestForm({ draft, workspace, done }: { draft: Draft; workspace: Workspace; done: () => void }) {
   const [edits, setEdits] = useState<Partial<Draft['request']>>({});
   const request = { ...draft.request, ...edits };
+  const [qualifications, setQualifications] = useState(false);
   const setRequest = (patch: Partial<Draft['request']>) => setEdits(previous => ({ ...previous, ...patch }));
   const [note, setNote] = useState<string>();
   const save = useSave();
@@ -51,8 +53,10 @@ export function RequestForm({ draft, workspace, done }: { draft: Draft; workspac
     <Field label="Container / packaging" placeholder="e.g. glass bottle, PET, carton" value={request.packaging} onChangeText={packaging => setRequest({ packaging })} />
     <Field label="Required throughput" placeholder="e.g. 2400" keyboardType="decimal-pad" value={request.throughput} onChangeText={throughput => setRequest({ throughput })} />
     <Choice label="Unit" value={request.unit} options={[{ value: 'units/h', label: 'Units / hour' }, { value: 'bottles/h', label: 'Bottles / hour' }, { value: 'L/h', label: 'Liters / hour' }]} onChange={unit => setRequest({ unit })} />
+    <Button label={qualifications ? 'Hide additional requirements' : 'Additional requirements'} kind="quiet" onPress={() => setQualifications(!qualifications)} />
+    {qualifications && qualificationKeys.map(key => <Field key={key} label={requestLabels[key]} value={request[key] ?? ''} onChangeText={value => setRequest({ [key]: value })} />)}
     <Field label="Conversation notes" value={note ?? draft.note} onChangeText={setNote} multiline placeholder="Timing, budget, a machine they mentioned…" />
-    <View style={{ backgroundColor: colors.pale, padding: 14, borderRadius: 10 }}><Txt style={{ fontSize: 16, color: colors.green }}>{rfqGaps(request).length ? `Still needed: ${rfqGaps(request).join(' · ')}. You can save now.` : 'The three filling requirements are captured. Machine matching is a later step.'}</Txt></View>
+    <View style={{ backgroundColor: colors.pale, padding: 14, borderRadius: 10 }}><Txt style={{ fontSize: 16, color: colors.green }}>{rfqGaps(request).length ? `Still needed: ${rfqGaps(request).join(' · ')}. You can save now.` : 'The three filling requirements are captured. Ray can help qualify the technical fit.'}</Txt></View>
     <ErrorNotice message={save.error} />
     <Button label={save.busy ? 'Saving…' : 'Save request'} icon="check" disabled={save.busy} onPress={() => save.run(async () => { await workspace.update(draft.id, { type: 'edit', patch: { request: { ...edits, ...(('throughput' in edits || 'unit' in edits) ? { throughput: request.throughput, unit: request.unit } : {}) }, ...(note === undefined ? {} : { note }) } }); done(); })} />
   </>;

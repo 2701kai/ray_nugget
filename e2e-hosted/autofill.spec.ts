@@ -47,7 +47,7 @@ test('card and speech fill one visitor without typing or a required review; relo
   await expect(page.getByRole('textbox')).toHaveCount(0);
   await page.screenshot({ path: test.info().outputPath('automatic-details-mobile.png'), animations: 'disabled' });
   await page.reload();
-  await page.getByRole('button', { name: 'Review extracted text', exact: true }).first().click();
+  await page.getByRole('button', { name: 'View captured details', exact: true }).first().click();
   await expect(page.getByRole('textbox')).toHaveCount(0);
   await expect(page.getByText('mara@example.test', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Edit details manually', exact: true }).click();

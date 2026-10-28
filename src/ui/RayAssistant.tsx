@@ -1,3 +1,7 @@
+import { deferredQuestions } from '../domain/requirements';
+import { continuationBlock } from '../ray/continuation';
+import { reviewChanges } from '../processing/review';
+import { ExtractionReview } from './ExtractionReview';
 import { useEffect, useState } from 'react';
 import { Linking, View, useWindowDimensions } from 'react-native';
 import type { Draft } from '../domain/draft';
@@ -13,6 +17,9 @@ export function RayAssistant({ draft, workspace, speak }: { draft: Draft; worksp
   const [expanded, setExpanded] = useState(false);
   const [briefOpen, setBriefOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [moreQuestions, setMoreQuestions] = useState(false);
+  const [showDeferred, setShowDeferred] = useState(false);
+  const [reviewJobId, setReviewJobId] = useState<string>();
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const { width } = useWindowDimensions();
@@ -22,7 +29,22 @@ export function RayAssistant({ draft, workspace, speak }: { draft: Draft; worksp
   const history = [...(draft.ray ?? [])].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   const latest = history[0];
   const state = workspace.rayStates[draft.id];
-  const stale = !!latest && fingerprint !== latest.sourceFingerprint;
+  const stale = !!latest && !!fingerprint && fingerprint !== latest.sourceFingerprint;
+  const enabled = !!workspace.rayEnabled[draft.id];
+  const blocked = continuationBlock(draft, workspace.jobs);
+  const deferred = deferredQuestions(draft.rayQuestions);
+  const questions = latest?.questions.filter(q => !deferred.includes(q)) ?? [];
+  const visibleQuestions = moreQuestions ? questions : questions.slice(0, 1);
+  const reviewJob = workspace.jobs.find(j => j.id === reviewJobId && j.draftId === draft.id);
+  const conflictJob = workspace.jobs.filter(j => j.draftId === draft.id && j.state === 'complete' && j.reviewedAt === undefined && (reviewChanges(draft, j).some(c => !c.superseded) || j.result?.questions?.length)).sort((a, b) => b.createdAt - a.createdAt)[0];
+  const summary = latest?.text.split(/\n\s*\n/).find(p => !p.includes('?')) ?? '';
+  async function decide(question: string, deferred: boolean, consultationId = latest?.id) {
+    if (!consultationId || saving) return;
+    setSaving(true); setError('');
+    try { await workspace.decideRayQuestion(draft.id, consultationId, question, deferred); }
+    catch (e) { setError(e instanceof Error ? e.message : 'Could not save this choice.'); }
+    finally { setSaving(false); }
+  }
   if (!workspace.rayAvailable && !latest) return null;
   const seller = draft.request.intent === 'sell';
   const hasNeed = !!(draft.request.product || draft.request.packaging || draft.request.throughput || draft.note || draft.entries?.length || draft.attachments.some(a => a.kind === 'voice'));
@@ -37,18 +59,22 @@ export function RayAssistant({ draft, workspace, speak }: { draft: Draft; worksp
   const open = (url: string) => { void Linking.openURL(url).catch(() => setError('The listing could not be opened. Try again when online.')); };
   return <View testID="ray-assistant" style={{ backgroundColor: colors.paper, borderWidth: 1, borderColor: colors.line, borderRadius: 12, padding: 14, gap: 10 }}>
     <View style={{ flexDirection: width < 360 ? 'column' : 'row', alignItems: width < 360 ? 'flex-start' : 'center', justifyContent: 'space-between', gap: 8 }}>
-      <View style={{ flex: width < 360 ? undefined : 1 }}><Txt weight="bold" style={{ fontSize: 18 }}>Ray · Equipment help</Txt><Txt style={{ fontSize: 16, lineHeight: 22, color: colors.muted }}>{seller ? 'Seller lead saved for the team.' : 'Use what you’ve captured. No retyping.'}</Txt></View>
-      {!seller && workspace.rayAvailable && <Button label={state?.busy ? 'Asking…' : latest ? 'Ask Ray again' : 'Ask Ray'} disabled={state?.busy || !hasNeed} kind="secondary" onPress={() => { setExpanded(false); void workspace.askRay(draft.id); }} style={{ paddingHorizontal: 10 }} />}
+      <View style={{ flex: width < 360 ? undefined : 1 }}><Txt weight="bold" style={{ fontSize: 18 }}>Ray · Equipment help</Txt><Txt style={{ fontSize: 16, lineHeight: 22, color: colors.muted }}>{seller ? 'Seller lead saved for the team.' : 'Help for this conversation.'}</Txt></View>
+      {!seller && workspace.rayAvailable && (enabled ? <Button label="Pause Ray" kind="quiet" onPress={() => workspace.pauseRay(draft.id)} /> : <Button label={state?.busy ? 'Asking…' : latest ? 'Resume Ray' : 'Ask Ray'} disabled={state?.busy || !hasNeed} kind="secondary" onPress={() => { setExpanded(false); void workspace.askRay(draft.id); }} style={{ paddingHorizontal: 10 }} />)}
     </View>
     {!hasNeed && !seller && <Txt style={{ fontSize: 16, color: colors.muted }}>Add the equipment need by voice or note first.</Txt>}
     {state?.busy && <Txt accessibilityLiveRegion="polite" style={{ fontSize: 16, color: colors.green }}>Ray is checking the request. You can keep capturing or open another visitor.</Txt>}
+    {enabled && !state?.busy && <Txt accessibilityLiveRegion="polite" style={{ fontSize: 16, color: colors.green }}>{blocked === 'processing' ? 'Reading your answer. Ray will continue when it is ready.' : blocked === 'failed' ? 'Your recording is saved. Retry its processing to continue with Ray.' : blocked === 'review' ? 'One detail needs checking before Ray continues.' : 'Ray assistance is on. Saved answers update the advice automatically.'}</Txt>}
+    {enabled && blocked === 'review' && conflictJob && <Button label="Check this detail" kind="secondary" onPress={() => setReviewJobId(conflictJob.id)} />}
+    {reviewJob && <ExtractionReview key={reviewJob.id} job={reviewJob} draft={draft} workspace={workspace} close={() => setReviewJobId(undefined)} />}
     <ErrorNotice message={state?.error || error} />
     {latest && <>
-      <Txt accessibilityLiveRegion="polite" style={{ fontSize: 16, color: stale ? colors.danger : colors.muted }}>{stale ? 'New details added · ask Ray again to update this advice.' : `Advice saved · ${new Date(latest.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`}</Txt>
-      {!!latest.questions.length && <View style={{ backgroundColor: colors.pale, padding: 10, borderRadius: 8, gap: 5 }}><Txt weight="bold" style={{ fontSize: 16 }}>Ask next</Txt>{latest.questions.map((q, i) => <Txt key={i} style={{ fontSize: 16, lineHeight: 24 }}>{q}</Txt>)}</View>}
-      <Txt selectable style={{ fontSize: 16, lineHeight: 24 }} numberOfLines={expanded ? undefined : 8}>{latest.text}</Txt>
+      <Txt accessibilityLiveRegion="polite" style={{ fontSize: 14, color: colors.muted }}>{stale ? enabled ? 'Earlier advice · new details are being prepared' : 'Earlier advice · resume Ray to include new details' : `Advice saved · ${new Date(latest.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`}</Txt>
+      {!!visibleQuestions.length && <View style={{ backgroundColor: colors.pale, padding: 12, borderRadius: 8, gap: 8 }}><Txt weight="bold" style={{ fontSize: 16 }}>Ask next</Txt>{visibleQuestions.map(q => <View key={q} style={{ gap: 6 }}><Txt style={{ fontSize: 18, lineHeight: 26 }}>{q}</Txt><Button label="Not known yet" kind="quiet" disabled={saving} onPress={() => { void decide(q, true); }} style={{ alignSelf: 'flex-start', paddingHorizontal: 0 }} /></View>)}{questions.length > 1 && <Button label={moreQuestions ? 'Show priority question' : `${questions.length - 1} more question${questions.length > 2 ? 's' : ''}`} kind="quiet" onPress={() => setMoreQuestions(!moreQuestions)} />}</View>}
+      {!!summary && <Txt selectable style={{ fontSize: 16, lineHeight: 24 }} numberOfLines={4}>{summary}</Txt>}
+      {!seller && <Button label="Answer by voice" icon="mic" kind="secondary" onPress={speak} style={{ alignSelf: 'flex-start' }} />}
       <Button label={expanded ? 'Less advice' : 'Read full advice'} kind="quiet" onPress={() => setExpanded(!expanded)} style={{ alignSelf: 'flex-start', paddingHorizontal: 0 }} />
-      {!seller && <Button label="Answer by voice" icon="mic" kind="quiet" onPress={speak} style={{ alignSelf: 'flex-start', paddingHorizontal: 0 }} />}
+      {expanded && <Txt selectable style={{ fontSize: 16, lineHeight: 24 }}>{latest.text}</Txt>}
       {!!latest.machines.length && <Txt weight="semibold" style={{ fontSize: 16 }}>Possible machines · fit and availability to confirm</Txt>}
       {latest.machines.map(m => <View key={m.sku} style={{ borderTopWidth: 1, borderColor: colors.line, paddingTop: 10, gap: 5 }}>
         <Txt weight="bold" style={{ fontSize: 16, lineHeight: 23 }}>{m.title}</Txt><Txt style={{ fontSize: 16, color: colors.muted }}>{m.manufacturer} · {m.sku}</Txt>
@@ -56,7 +82,8 @@ export function RayAssistant({ draft, workspace, speak }: { draft: Draft; worksp
       </View>)}
       {!!latest.omitted && <Txt style={{ fontSize: 16, color: colors.muted }}>Ray used selected excerpts; {latest.omitted} longer or additional excerpts stayed in Pete. Add a short summary if something important is missing.</Txt>}
       {!!latest.pending && <Txt style={{ fontSize: 16, color: colors.muted }}>{latest.pending} recording(s) were still awaiting text when you asked.</Txt>}
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}><Button label={briefOpen ? 'Hide request sent' : 'Request sent to Ray'} kind="quiet" onPress={() => setBriefOpen(!briefOpen)} />{history.length > 1 && <Button label={historyOpen ? 'Hide earlier advice' : `Earlier advice (${history.length - 1})`} kind="quiet" onPress={() => setHistoryOpen(!historyOpen)} />}</View>
+      {!!deferred.length && <View style={{ gap: 6 }}><Button label={showDeferred ? 'Hide questions for later' : `${deferred.length} question${deferred.length > 1 ? 's' : ''} for later`} kind="quiet" onPress={() => setShowDeferred(!showDeferred)} />{showDeferred && deferred.map(q => <View key={q}><Txt style={{ fontSize: 16 }}>{q}</Txt><Button label="Revisit question" kind="quiet" disabled={saving} onPress={() => { const origin = [...(draft.rayQuestions ?? [])].reverse().find(d => d.question === q); void decide(q, false, origin?.consultationId); }} /></View>)}</View>}
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>{enabled && <Button label="Refresh advice" kind="quiet" disabled={state?.busy} onPress={() => { void workspace.askRay(draft.id); }} />}<Button label={briefOpen ? 'Hide request sent' : 'Request sent to Ray'} kind="quiet" onPress={() => setBriefOpen(!briefOpen)} />{history.length > 1 && <Button label={historyOpen ? 'Hide earlier advice' : `Earlier advice (${history.length - 1})`} kind="quiet" onPress={() => setHistoryOpen(!historyOpen)} />}</View>
       {briefOpen && <Txt selectable style={{ fontSize: 16, lineHeight: 24, color: colors.muted }}>{latest.brief}</Txt>}
       {historyOpen && history.slice(1).map(a => <View key={a.id} style={{ borderTopWidth: 1, borderColor: colors.line, paddingTop: 10, gap: 5 }}><Txt weight="semibold" style={{ fontSize: 16 }}>Earlier advice · {new Date(a.createdAt).toLocaleString('en-US')}</Txt><Txt selectable style={{ fontSize: 16, lineHeight: 24 }}>{a.text}</Txt></View>)}
       {selected.filter(m => m.consultation !== latest.id).map(m => <View key={`${m.consultation}/${m.sku}`}><Txt style={{ fontSize: 16 }}>Previously saved: {m.title}</Txt><Button label={`Open ${m.sku}`} kind="quiet" onPress={() => open(m.url)} /></View>)}

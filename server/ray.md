@@ -1,6 +1,6 @@
 # Pete → Ray consultation
 
-Pete 0.7.0 adds optional equipment advice inside a visitor. The authenticated Pete
+Pete 0.8.0 adds assisted continuation to the visitor-bound equipment advice introduced in 0.7.0. The authenticated Pete
 API uses Ray's existing public consultation interface. Capture, transcription,
 cloud saving and lead intake remain independent. No inquiry endpoint or messaging
 action is called. CRM delivery remains disabled.
@@ -19,17 +19,16 @@ of this visitor's notes/voice transcripts. Card text, media, contact fields and
 event attribution are excluded. Known contact values, email addresses and
 international phone numbers are redacted from excerpts; this is not a guarantee
 of detecting every incidental personal reference in free speech. A user can inspect
-the exact request in saved advice. Sources remain intact in Pete. Excerpts that do
+the sent brief in saved advice; originating questions and answers remain attached to their recordings. Sources remain intact in Pete. Excerpts that do
 not fit are counted and disclosed; pending recordings are disclosed too. A short
 voice summary can add omitted context. This first slice does not summarize arbitrarily
 long conversations through another model. Seller matching is intentionally unavailable.
 
 The full local need source is fingerprinted, but only the fingerprint and bounded
-brief leave the browser. Throughput and its unit travel together as text; Ray's
+brief and bounded question/answer history leave the browser. Throughput and its unit travel together as text; Ray's
 unitless capacity filter is always null. Fields marked confirmed take precedence
 over older source statements. Responses remain advice, not edits to customer facts.
-Every consultation starts with fresh, visitor-specific context, not a global Ray
-browser session. The existing service determines its own model processing policy;
+Version 2 requests carry up to three source-bound question/answer pairs and a bounded deferred-question reminder. They do not share a global Ray browser session. Established requirements retain separate attributes for process, particles, closure, scope, brand and timing. The bounded history is context, not a substitute for current source-backed facts. Version 1 calls remain accepted. The existing service determines its own model processing policy;
 Pete's EU transcription configuration is not a model-residency claim about Ray.
 
 The request ID hashes the validated body, including visitor, source fingerprint and
@@ -65,8 +64,27 @@ Team merging unions consultations; concurrent edits to the same selection are
 explicit conflicts. Cloud pointer `rayIds` prevents older clients from silently
 dropping already-saved consultations. Use Pete 0.7.0+ for backups containing advice.
 
-`Answer by voice` opens the existing recorder for the same visitor. After text
-arrives, `Ask Ray again` includes the new evidence. No extra form is required.
+`Ask Ray` activates assistance for the selected visitor in this open app session.
+`Answer by voice` opens the same recorder, retaining the current request and Ray
+questions at capture start. Once new voice jobs finish and genuine conflicts have
+been resolved, Pete requests updated advice automatically. The current visitor
+must still be selected, the app visible/online, and capture/edit panels closed.
+Metadata changes and saved advice do not trigger another call. Calls are spaced
+at least three seconds apart, grouped while captures are pending, and stop after
+12 automatic updates per activation. Errors pause assistance; Resume is explicit.
+Pause prevents future calls but retains a reply already in flight on its visitor.
+A reload starts paused; offline capture continues normally. No audio is streamed
+while recording for live coaching.
+
+The screen prioritizes one next question, with additional questions/advice optional.
+Not known yet records a visitor-bound decision; Revisit question reopens it.
+Question decisions are append-only and merge by ID. They travel in backups and
+team/cloud manifests. A `conversationVersion` cloud pointer rejects older clients
+that would strip the additive conversation attributes. Use Pete 0.8.0+ to edit
+these records. Clear facts fill empty fields; reviewed/manual values remain
+protected. Narrow translation equivalences avoid false conflicts. Contextual
+extraction includes the source's request/question snapshot in its cache identity.
+Legacy context-free extraction remains compatible with older clients.
 Previously saved advice remains readable offline; new consultations need a
 connection. Native hosted auth/processing is not introduced by this PWA release.
 
@@ -80,3 +98,14 @@ offline refusal, later corrections, navigation during a request and voice answer
 Live verification uses synthetic needs only; private logs record the deployed Ray
 contract and actual response times. Chromium checks do not prove physical iPhone
 behavior. A separate full-project “Continue in Ray” handoff remains future work.
+
+`tests/conversation.test.ts` covers additive enrichment, contextual cache identity,
+unknown answers, deferred decisions, source binding, continuation gates, and
+portable/team state. `e2e-hosted/ray-conversation.spec.ts` runs the complete saved
+answer → automatic advice loop, Pause/reload/defer, and correction confirmation.
+`bun scripts/evaluate-conversation.ts` is an explicit live model evaluation using
+synthetic examples and company credentials. Source-span wording can vary; the
+acceptance criteria are correct attributes, preserved facts, and no unnecessary
+review. Google schema array bounds are validated in Pete to avoid a constrained
+decoding complexity error; field enums and typed structured output remain enabled.
+See [Google structured-output guidance](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/capabilities/control-generated-output).

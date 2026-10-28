@@ -1,3 +1,5 @@
+import { deferredQuestions, parseCaptureContext, type CaptureContext } from './domain/requirements';
+import { continuationBlock, canContinue, MAX_AUTOMATIC_CONSULTATIONS, MIN_CONSULTATION_INTERVAL, type ContinuationSession } from './ray/continuation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 import * as Crypto from 'expo-crypto';
@@ -36,6 +38,11 @@ export function useWorkspace() {
   const [error, setError] = useState('');
   const [processingError, setProcessingError] = useState('');
   const [generation, setGeneration] = useState(0);
+  const rayObserved = useRef(new Map<string, string>());
+  const raySessions = useRef(new Map<string, ContinuationSession>());
+  const [rayEnabled, setRayEnabled] = useState<Record<string, boolean>>({});
+  const activeVisitor = useRef(activeDraftId); activeVisitor.current = activeDraftId;
+  const rayTick = useRef<() => void>(() => undefined);
   const rayRequests = useRef(new Map<string, AbortController>());
   const [rayStates, setRayStates] = useState<Record<string, { busy: boolean; error?: string }>>({});
   useUpdateGuard(Object.values(rayStates).some(s => s.busy));
@@ -45,7 +52,7 @@ export function useWorkspace() {
     let currentRunner: ReturnType<typeof startProcessing> | undefined;
     let currentTeam: ReturnType<typeof startTeamSync> | undefined;
     let currentCloud: ReturnType<typeof startCloudSaving> | undefined;
-    setLoading(true); setError(''); setProcessingError(''); setRayStates({});
+    setLoading(true); setError(''); setProcessingError(''); setRayStates({}); raySessions.current.clear(); rayObserved.current.clear(); setRayEnabled({});
     openRepository(storageName()).then(async repository => {
       current = repository;
       const [records, prefs, tasks, selected] = await Promise.all([repository.list(), repository.preferences(), repository.jobs(), repository.activeDraft()]);
@@ -126,26 +133,93 @@ export function useWorkspace() {
     if (!team.current) throw new Error('The team workspace is not ready.');
     await team.current.assignOwner(id, email, expectedVersion);
   }
-  async function askRay(id: string) {
-    if (rayRequests.current.has(id)) return;
-    const current = repository(); const controller = new AbortController();
-    rayRequests.current.set(id, controller); setRayStates(s => ({ ...s, [id]: { busy: true } }));
+  function captureContext(id: string): CaptureContext {
+    const draft = drafts.find(d => d.id === id);
+    if (!draft) return { version: 1, request: {}, questions: [] };
+    const latest = [...(draft.ray ?? [])].sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+    const deferred = deferredQuestions(draft.rayQuestions);
+    return parseCaptureContext({ version: 1, request: draft.request, ...(latest ? { consultationId: latest.id } : {}), questions: latest?.questions.filter(q => !deferred.includes(q)) ?? [] });
+  }
+  function pauseRay(id: string) {
+    const session = raySessions.current.get(id);
+    if (session) session.enabled = false;
+    setRayEnabled(s => ({ ...s, [id]: false }));
+  }
+  async function decideRayQuestion(id: string, consultationId: string, question: string, deferred: boolean) {
+    await update(id, { type: 'rayQuestion', decision: { id: Crypto.randomUUID(), consultationId, question, deferred, createdAt: new Date().toISOString() } });
+  }
+  async function askRay(id: string, automatic = false) {
+    if (rayRequests.current.has(id) || !repo.current) return;
+    const current = repository();
+    let session = raySessions.current.get(id);
+    if (!automatic) {
+      session = { enabled: true, attempts: 0, lastAt: 0 };
+      raySessions.current.set(id, session); setRayEnabled(s => ({ ...s, [id]: true }));
+    }
+    if (!session?.enabled) return;
+    if (automatic && (activeVisitor.current !== id || editingTeam.current || typeof navigator !== 'undefined' && !navigator.onLine || typeof document !== 'undefined' && document.visibilityState === 'hidden')) return;
+    const controller = new AbortController(); rayRequests.current.set(id, controller);
+    let started = false;
     try {
-      const records = await current.list(); const draft = records.find(d => d.id === id);
+      const [records, tasks] = await Promise.all([current.list(), current.jobs()]);
+      if (repo.current !== current || controller.signal.aborted) return;
+      const draft = records.find(d => d.id === id);
       if (!draft) throw new Error('The visitor is no longer available.');
-      const input = await prepareRayInput(draft, await current.jobs(), digest);
+      if (automatic && (activeVisitor.current !== id || !session.enabled || continuationBlock(draft, tasks))) return;
+      const input = await prepareRayInput(draft, tasks, digest);
+      if (repo.current !== current || controller.signal.aborted) return;
+      if (automatic) {
+        const latest = [...(draft.ray ?? [])].sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+        if (latest?.sourceFingerprint === input.sourceFingerprint || !canContinue(session, input.sourceFingerprint, Date.now())) return;
+        if (activeVisitor.current !== id || !session.enabled || editingTeam.current) return;
+        session.attempts++;
+      }
+      session.lastSource = input.sourceFingerprint; session.lastAt = Date.now();
+      started = true; setRayStates(s => ({ ...s, [id]: { busy: true } }));
       const advice = await requestRay(input, controller.signal);
       if (repo.current !== current || controller.signal.aborted) return;
-      // Append to the captured visitor, even when the user has moved elsewhere.
-      // A new source can arrive meanwhile: advice retains its original fingerprint.
+      // Save on the originating visitor even after navigation or Pause. The
+      // source fingerprint prevents an old response becoming current advice.
       const updated = await current.update(id, { type: 'rayAdvice', advice });
       if (repo.current !== current) return;
       merge(updated); cloud.current?.wake(); team.current?.wake();
       setRayStates(s => ({ ...s, [id]: { busy: false } }));
+      if (session.attempts >= MAX_AUTOMATIC_CONSULTATIONS) {
+        pauseRay(id); setRayStates(s => ({ ...s, [id]: { busy: false, error: 'Ray assistance is paused after 12 updates. Resume when you need more help.' } }));
+      }
     } catch (e) {
-      if (repo.current === current && !controller.signal.aborted) setRayStates(s => ({ ...s, [id]: { busy: false, error: e instanceof Error && e.name !== 'TimeoutError' ? e.message : 'Ray took too long. Your visitor stays saved; tap Ask Ray to retry.' } }));
-    } finally { if (rayRequests.current.get(id) === controller) rayRequests.current.delete(id); }
+      if (repo.current === current && !controller.signal.aborted) {
+        pauseRay(id);
+        setRayStates(s => ({ ...s, [id]: { busy: false, error: e instanceof Error && e.name !== 'TimeoutError' ? e.message : 'Ray took too long. Your visitor stays saved; resume to retry.' } }));
+      }
+    } finally {
+      if (rayRequests.current.get(id) === controller) rayRequests.current.delete(id);
+      if (started && controller.signal.aborted && repo.current === current) setRayStates(s => ({ ...s, [id]: { busy: false } }));
+    }
   }
-  return { rayAvailable, rayStates, askRay, assignLeadOwner, holdTeamUpdates: (held: boolean) => { editingTeam.current = held; if (!held) team.current?.wake(); }, cancelTeamOpen: () => team.current?.cancelOpen(), teamView, scope, selectScope, openTeam, shareTeam, resolveTeam: (id: string, choices: Record<string, 'local' | 'team'>) => team.current?.resolve(id, choices), drafts, activeDraftId, activateDraft, jobs, supportedKinds, preferences, loading, error, processingError, cloudEnabled, cloudStates, cloudCopies, restoreCloud, retryCloud: () => cloud.current?.wake(), retry: () => setGeneration(g => g + 1), create, update, attach, savePreferences, getMedia, retryJob, reviewJob, backup, restore };
+  // Assistance belongs to this open app session and the selected visitor. A
+  // reload starts paused; opening someone else's shared visitor never starts AI.
+  rayTick.current = () => {
+    if (!activeDraftId || !rayEnabled[activeDraftId] || rayRequests.current.has(activeDraftId) || editingTeam.current || typeof navigator !== 'undefined' && !navigator.onLine || typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+    const session = raySessions.current.get(activeDraftId);
+    if (!session || Date.now() - session.lastAt < MIN_CONSULTATION_INTERVAL) return;
+    const draft = drafts.find(d => d.id === activeDraftId);
+    if (!draft) return;
+    // Check cheap revision markers first. An idle conversation never rereads all
+    // local drafts/media or hashes its transcript history on every timer tick.
+    const stamp = `${draft.revision}/${jobs.filter(j => j.draftId === activeDraftId).map(j => `${j.id}:${j.state}:${j.updatedAt}:${j.reviewedAt ?? ''}`).join(',')}`;
+    if (rayObserved.current.get(activeDraftId) === stamp) return;
+    rayObserved.current.set(activeDraftId, stamp);
+    void askRay(activeDraftId, true);
+  };
+  useEffect(() => {
+    const wake = () => { rayObserved.current.clear(); rayTick.current(); };
+    const timer = setInterval(() => rayTick.current(), 2000);
+    if (typeof window !== 'undefined') window.addEventListener('online', wake);
+    if (typeof document !== 'undefined') document.addEventListener('visibilitychange', wake);
+    return () => { clearInterval(timer); if (typeof window !== 'undefined') window.removeEventListener('online', wake); if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', wake); };
+  }, []);
+
+  return { rayAvailable, rayStates, rayEnabled, pauseRay, captureContext, decideRayQuestion, askRay, assignLeadOwner, holdTeamUpdates: (held: boolean) => { editingTeam.current = held; if (!held) { rayObserved.current.clear(); team.current?.wake(); } }, cancelTeamOpen: () => team.current?.cancelOpen(), teamView, scope, selectScope, openTeam, shareTeam, resolveTeam: (id: string, choices: Record<string, 'local' | 'team'>) => team.current?.resolve(id, choices), drafts, activeDraftId, activateDraft, jobs, supportedKinds, preferences, loading, error, processingError, cloudEnabled, cloudStates, cloudCopies, restoreCloud, retryCloud: () => cloud.current?.wake(), retry: () => setGeneration(g => g + 1), create, update, attach, savePreferences, getMedia, retryJob, reviewJob, backup, restore };
 }
 export type Workspace = ReturnType<typeof useWorkspace>;

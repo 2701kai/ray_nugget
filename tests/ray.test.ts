@@ -140,3 +140,12 @@ test('an older client cannot overwrite a cloud visitor and silently remove saved
   await expect(cloud.save('alice', first.id, encodeManifest({ draft: older, jobs: [] }), first.fingerprint)).rejects.toMatchObject({ status: 409 });
   expect((await cloud.get('alice', first.id))!.fingerprint).toBe(first.fingerprint); db.close();
 });
+
+test('the authenticated route accepts bounded conversation history beyond the old brief-only body limit', async () => {
+  const db = sqliteAtomic(); let calls = 0;
+  const service = rayService(db.store, { async consult(body) { calls++; expect(body.history).toHaveLength(8); return advice(); } });
+  const handler = hostedHandler({} as ReturnType<typeof hostedJobs>, async uid => ({ uid, email: 'synthetic@bevmaq.com', email_verified: true }), ['https://pete.example.test'], 'test', undefined, undefined, [], service);
+  const body: RayInput = { ...input(), version: 2, history: Array.from({ length: 8 }, (_, i) => ({ role: i % 2 ? 'user' : 'assistant', text: 'Synthetic context. '.repeat(100) })), sourceIds: Array.from({ length: 250 }, (_, i) => `source-${i}`) };
+  const response = await handler(new Request(`https://pete.example.test/api/ray/${rayId(body)}`, { method: 'POST', headers: { Origin: 'https://pete.example.test', Authorization: 'Bearer synthetic' }, body: JSON.stringify(body) }));
+  expect(response.status).toBe(200); expect(calls).toBe(1); db.close();
+});

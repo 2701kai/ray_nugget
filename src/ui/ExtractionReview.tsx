@@ -1,3 +1,4 @@
+import { qualificationKeys, requestTextKeys, requestLabels } from '../domain/requirements';
 import { useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
@@ -33,14 +34,14 @@ export function ExtractionReview({ job, draft, workspace, close }: { job: Proces
   });
   const [intent, setIntent] = useState(job.result?.request?.intent ?? draft.request.intent);
   const [useIntent, setUseIntent] = useState(!!job.result?.request?.intent && (draft.request.intent === 'unspecified' && !draft.provenance['request.intent'] || draft.provenance['request.intent']?.jobId === job.id));
-  const [request, setRequest] = useState(() => ({ ...draft.request,
+  const [request, setRequest] = useState(() => ({ ...draft.request, ...Object.fromEntries(qualificationKeys.filter(k => job.result?.request?.[k]).map(k => [k, job.result!.request![k]])),
     product: candidates.product?.value ?? draft.request.product,
     packaging: candidates.packaging?.value ?? draft.request.packaging,
     ...(candidates.capacity?.value ?? {}),
   }));
-  const [requestSelected, setRequestSelected] = useState<Record<'product' | 'packaging' | 'capacity', boolean>>(() => {
-    const untouched = (field: 'product' | 'packaging' | 'throughput' | 'unit') => (!draft.request[field] && !draft.provenance[`request.${field}`]) || draft.provenance[`request.${field}`]?.jobId === job.id;
-    return { product: !!candidates.product && untouched('product'), packaging: !!candidates.packaging && untouched('packaging'), capacity: !!candidates.capacity && untouched('throughput') && untouched('unit') };
+  const [requestSelected, setRequestSelected] = useState<Partial<Record<typeof requestTextKeys[number] | 'capacity', boolean>>>(() => {
+    const untouched = (field: typeof requestTextKeys[number] | 'throughput' | 'unit') => (!draft.request[field] && !draft.provenance[`request.${field}`]) || draft.provenance[`request.${field}`]?.jobId === job.id;
+    return { ...Object.fromEntries(qualificationKeys.map(k => [k, !!job.result?.request?.[k] && untouched(k)])), product: !!candidates.product && untouched('product'), packaging: !!candidates.packaging && untouched('packaging'), capacity: !!candidates.capacity && untouched('throughput') && untouched('unit') };
   });
   const [append, setAppend] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -54,8 +55,7 @@ export function ExtractionReview({ job, draft, workspace, close }: { job: Proces
       const reviewedRequest: RequestReview = {};
       if (apply && job.kind === 'voice') {
         if (useIntent) reviewedRequest.intent = intent;
-        if (requestSelected.product) reviewedRequest.product = request.product;
-        if (requestSelected.packaging) reviewedRequest.packaging = request.packaging;
+        for (const k of requestTextKeys) if (requestSelected[k]) reviewedRequest[k] = request[k];
         if (requestSelected.capacity) reviewedRequest.capacity = { throughput: request.throughput, unit: request.unit };
       }
       await workspace.reviewJob(job.id, fields, revision, { appendTranscript: apply && append, request: Object.keys(reviewedRequest).length ? reviewedRequest : undefined }); close();
@@ -107,13 +107,18 @@ export function ExtractionReview({ job, draft, workspace, close }: { job: Proces
         <View style={{ gap: 4 }}><Txt weight="bold">Filling request</Txt><Txt style={{ color: colors.muted, fontSize: 16 }}>Check these details against the conversation. Say missing details in another voice note, or choose an alternative here.</Txt></View>
         {(editing || !!job.result?.request?.intent) && <View style={{ gap: 8 }}><Check label="Use buying / selling intent" checked={useIntent} onPress={() => setUseIntent(!useIntent)} />{editing ? <Choice label="Buying or selling" value={intent} options={[{ value: 'buy', label: 'Buying' }, { value: 'sell', label: 'Selling' }, { value: 'unspecified', label: 'Still needed' }]} onChange={value => { setIntent(value); setUseIntent(true); }} /> : <Txt>{intent === 'buy' ? 'Buying' : intent === 'sell' ? 'Selling' : 'Still needed'}</Txt>}</View>}
         {(['product', 'packaging'] as const).filter(field => editing || !!candidates[field]).map(field => <View key={field} style={{ gap: 8 }}>
-          <Check label={field === 'product' ? 'Use product' : 'Use container / packaging'} checked={requestSelected[field]} onPress={() => setRequestSelected({ ...requestSelected, [field]: !requestSelected[field] })} />
+          <Check label={field === 'product' ? 'Use product' : 'Use container / packaging'} checked={!!requestSelected[field]} onPress={() => setRequestSelected({ ...requestSelected, [field]: !requestSelected[field] })} />
           {!editing && <Txt selectable style={{ fontSize: 20 }}>{request[field]}{draft.request[field] && draft.request[field] !== request[field] ? ` · Keep: ${draft.request[field]}` : ''}</Txt>}
           {editing && <Field label={field === 'product' ? 'Product to fill' : 'Container / packaging'} value={request[field]} onChangeText={value => { setRequest({ ...request, [field]: value }); setRequestSelected({ ...requestSelected, [field]: true }); }} helper={draft.request[field] ? `Current: ${draft.request[field]}` : draft.provenance[`request.${field}`] ? 'Previously cleared. Select explicitly to replace.' : undefined} />}
           <Evidence text={candidates[field]?.evidence} />
         </View>)}
+        {qualificationKeys.filter(k => editing || job.result?.request?.[k]).map(k => <View key={k} style={{ gap: 8 }}>
+          <Check label={`Use ${requestLabels[k].toLowerCase()}`} checked={!!requestSelected[k]} onPress={() => setRequestSelected({ ...requestSelected, [k]: !requestSelected[k] })} />
+          {editing ? <Field label={requestLabels[k]} value={request[k] ?? ''} onChangeText={value => { setRequest({ ...request, [k]: value }); setRequestSelected({ ...requestSelected, [k]: true }); }} /> : <Txt>{request[k]}</Txt>}
+          <Evidence text={job.result?.evidence?.[`request.${k}`]} />
+        </View>)}
         {(editing || !!candidates.capacity) && <View style={{ gap: 8 }}>
-          <Check label="Use throughput and unit" checked={requestSelected.capacity} onPress={() => setRequestSelected({ ...requestSelected, capacity: !requestSelected.capacity })} />
+          <Check label="Use throughput and unit" checked={!!requestSelected.capacity} onPress={() => setRequestSelected({ ...requestSelected, capacity: !requestSelected.capacity })} />
           {!editing && <Txt selectable style={{ fontSize: 20 }}>{request.throughput} {request.unit}{draft.request.throughput && (draft.request.throughput !== request.throughput || draft.request.unit !== request.unit) ? ` · Keep: ${draft.request.throughput} ${draft.request.unit}` : ''}</Txt>}
           {editing && <Field label="Required throughput" value={request.throughput} keyboardType="decimal-pad" onChangeText={throughput => { setRequest({ ...request, throughput }); setRequestSelected({ ...requestSelected, capacity: true }); }} helper={draft.request.throughput || draft.request.unit ? `Current: ${draft.request.throughput || '—'} ${draft.request.unit}` : draft.provenance['request.throughput'] || draft.provenance['request.unit'] ? 'Previously cleared. Select explicitly to replace.' : undefined} />}
           {editing && <Choice label="Unit" value={request.unit} options={[{ value: '', label: 'Choose unit' }, { value: 'bottles/h', label: 'Bottles / hour' }, { value: 'units/h', label: 'Units / hour' }, { value: 'L/h', label: 'Liters / hour' }]} onChange={unit => { setRequest({ ...request, unit }); setRequestSelected({ ...requestSelected, capacity: true }); }} />}
@@ -158,7 +163,7 @@ export function ProcessingStatus({ draft, attachmentId, workspace }: { draft: Dr
     <Txt accessibilityLiveRegion="polite" style={{ fontSize: 16, lineHeight: 24, color: job.state === 'failed' ? colors.danger : colors.green }}>{label}</Txt>
     {!!job.error && <Txt style={{ fontSize: 16, color: colors.muted }}>{job.error}</Txt>}
     <ErrorNotice message={error} />
-    {job.state === 'complete' && <Button label={job.reviewedAt !== undefined ? 'View source text' : conflicts ? 'Check suggested changes' : 'Review extracted text'} kind={conflicts ? 'secondary' : 'quiet'} style={{ alignSelf: 'flex-start' }} onPress={() => setReviewing(true)} />}
+    {job.state === 'complete' && <Button label={job.reviewedAt !== undefined ? 'View source text' : conflicts ? 'Check suggested changes' : 'View captured details'} kind={conflicts ? 'secondary' : 'quiet'} style={{ alignSelf: 'flex-start' }} onPress={() => setReviewing(true)} />}
     {job.state === 'failed' && available && <Button label="Retry processing" kind="secondary" onPress={async () => { try { await workspace.retryJob(job.id); } catch { setError('Could not queue the retry.'); } }} />}
     {reviewing && <ExtractionReview key={job.id} job={job} draft={draft} workspace={workspace} close={() => setReviewing(false)} />}
   </View>;

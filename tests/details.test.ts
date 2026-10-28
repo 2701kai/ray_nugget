@@ -79,3 +79,10 @@ test('detail API requires company identity and allowed origin, validates source 
   expect((await call('alice', 'https://pete.example.test', { text: 'changed', kind: 'card' })).status).toBe(400);
   expect((await call()).status).toBe(200); expect((await (await call()).json()).result.fields.name).toBe('Mara Lind'); expect(calls).toBe(1);
 });
+
+test('formatting a source phone is deterministic and still requires the exact international number', () => {
+  const source = '+49 30 55501234';
+  const parsed = parseCapturedDetails({ candidates: [candidate('contact.phone', '+49 30 55501234', source)], questions: [] }, source, 'card');
+  expect(parsed.fields.phone).toBe('+493055501234'); expect(parsed.questions).toEqual([]);
+  expect(parseCapturedDetails({ candidates: [candidate('contact.phone', '+49 30 55509999', source)], questions: [] }, source, 'card').fields.phone).toBeUndefined();
+});

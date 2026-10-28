@@ -64,8 +64,8 @@ test('reported index failure falls back without blocking capture and keeps origi
   const chooser = page.waitForEvent('filechooser');
   await page.getByRole('button', { name: 'Choose a card photo', exact: true }).click();
   await (await chooser).setFiles({ name: 'safari-card.png', mimeType: 'image/png', buffer: Buffer.from(png, 'base64') });
-  await expect(page.getByRole('button', { name: /^(Review extracted text|Check suggested changes)$/ })).toBeVisible({ timeout: 45000 });
-  await page.getByRole('button', { name: /^(Review extracted text|Check suggested changes)$/ }).click();
+  await expect(page.getByRole('button', { name: /^(View captured details|Check suggested changes)$/ })).toBeVisible({ timeout: 45000 });
+  await page.getByRole('button', { name: /^(View captured details|Check suggested changes)$/ }).click();
   const chooseFields = page.getByRole('button', { name: 'View source and choose fields', exact: true });
   if (await chooseFields.isVisible()) await chooseFields.click();
   await expect(page.getByText('safari@example.test', { exact: true }).last()).toBeVisible();

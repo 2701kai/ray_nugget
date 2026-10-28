@@ -1,3 +1,4 @@
+import { qualificationKeys, requestLabels } from '../domain/requirements';
 import { useEffect, useState } from 'react';
 import { Image, View } from 'react-native';
 import { rfqGaps, titleOf, type Attachment, type Draft } from '../domain/draft';
@@ -48,6 +49,7 @@ export function DraftDetail({ draft, workspace, edit, intro, backup, exportRecor
     <View style={{ borderTopWidth: 1, borderColor: colors.line, paddingTop: 18, gap: 7 }}><View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}><Txt weight="bold" style={{ fontSize: 16 }}>Contact details</Txt><Button label="Edit contact" kind="quiet" onPress={() => edit('contact')} style={{ paddingHorizontal: 0, minHeight: 28 }} /></View><Txt style={{ color: draft.contact.phone ? colors.ink : colors.muted, fontSize: 16 }}>{draft.contact.phone || 'Mobile number not added'}</Txt><Txt style={{ color: draft.contact.email ? colors.ink : colors.muted, fontSize: 16 }}>{draft.contact.email || 'Email not added'}</Txt></View>
     <View style={{ borderTopWidth: 1, borderColor: colors.line, paddingTop: 18, gap: 10 }}><View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}><Txt weight="bold" style={{ fontSize: 16 }}>The request</Txt><Button label="Edit request" kind="quiet" onPress={() => edit('request')} style={{ paddingHorizontal: 0, minHeight: 28 }} /></View>{[
       ['Intent', draft.request.intent === 'unspecified' ? '' : draft.request.intent === 'buy' ? 'Buying' : 'Selling'], ['Product', draft.request.product], ['Container', draft.request.packaging], ['Throughput', draft.request.throughput ? `${draft.request.throughput} ${draft.request.unit}` : ''],
+      ...qualificationKeys.filter(k => draft.request[k]).map(k => [requestLabels[k], draft.request[k] ?? '']),
     ].map(([label, value]) => <View key={label} style={{ flexDirection: 'row', gap: 12 }}><Txt style={{ color: colors.muted, fontSize: 16, width: 80 }}>{label}</Txt><Txt style={{ fontSize: 16, flex: 1 }}>{value || 'Still needed'}</Txt></View>)}
     <View style={{ backgroundColor: colors.pale, borderRadius: 8, padding: 10 }}><Txt style={{ fontSize: 16, lineHeight: 24, color: colors.green }}>{gaps.length ? `${gaps.length} key details still needed` : 'Filling requirements captured'}</Txt></View>
     {!!draft.note && <Txt style={{ fontSize: 16, color: colors.muted }}>{draft.note}</Txt>}</View>

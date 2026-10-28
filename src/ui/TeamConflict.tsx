@@ -1,10 +1,11 @@
+import { requestLabels } from '../domain/requirements';
 import { useState } from 'react';
 import { View } from 'react-native';
 import type { Workspace } from '../useWorkspace';
 import { Button, Txt } from './primitives';
 import { colors } from './theme';
 import { useUpdateGuard } from '../pwa/updateGuard';
-const labels: Record<string, string> = { 'contact.name': 'Name', 'contact.company': 'Company', 'contact.phone': 'Phone', 'contact.email': 'Email', 'request.intent': 'Buying / selling', 'request.product': 'Product', 'request.packaging': 'Container', 'request.throughput': 'Throughput and unit', note: 'Note', event: 'Event' };
+const labels: Record<string, string> = { ...Object.fromEntries(Object.entries(requestLabels).map(([k, v]) => [`request.${k}`, v])), 'contact.name': 'Name', 'contact.company': 'Company', 'contact.phone': 'Phone', 'contact.email': 'Email', 'request.intent': 'Buying / selling', 'request.product': 'Product', 'request.packaging': 'Container', 'request.throughput': 'Throughput and unit', note: 'Note', event: 'Event' };
 export function TeamConflict({ id, workspace }: { id: string; workspace: Workspace }) {
   const state = workspace.teamView.states[id];
   useUpdateGuard(state?.state === 'conflict');

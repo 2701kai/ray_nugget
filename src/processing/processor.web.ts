@@ -15,7 +15,7 @@ export function createProcessor(): Processor {
   return {
     kinds: supportedKinds,
     isAvailable: () => navigator.onLine,
-    async process(job, bytes, mimeType, signal, checkpoint) {
+    async process(job, bytes, mimeType, signal, checkpoint, context) {
       async function source(): Promise<Extraction> {
         if (job.result) return job.result;
         if (job.kind === 'voice') return transcribe(job, bytes, mimeType, signal);
@@ -42,7 +42,7 @@ export function createProcessor(): Processor {
       }
       const original = await source();
       await checkpoint?.(original);
-      if (auth) return { text: original.text, ...await extractDetails(original.text, job.kind, signal) };
+      if (auth) return { text: original.text, ...await extractDetails(original.text, job.kind, signal, context) };
       const candidates = job.kind === 'voice' ? requestCandidates(original.text) : {};
       const request = Object.fromEntries(Object.entries(candidates).filter(([, candidate]) => candidate).map(([field, candidate]) => [field, candidate!.value]));
       return { ...original, ...(Object.keys(request).length ? { request } : {}) };

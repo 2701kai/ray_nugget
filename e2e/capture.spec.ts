@@ -148,8 +148,8 @@ test('real local OCR produces reviewable fields without replacing an existing vi
   const chooser = page.waitForEvent('filechooser');
   await page.getByRole('button', { name: 'Choose a card photo', exact: true }).click();
   await (await chooser).setFiles({ name: 'synthetic-readable-card.png', mimeType: 'image/png', buffer: Buffer.from(png, 'base64') });
-  await expect(page.getByRole('button', { name: /^(Review extracted text|Check suggested changes)$/ })).toBeVisible({ timeout: 60000 });
-  await page.getByRole('button', { name: /^(Review extracted text|Check suggested changes)$/ }).click();
+  await expect(page.getByRole('button', { name: /^(View captured details|Check suggested changes)$/ })).toBeVisible({ timeout: 60000 });
+  await page.getByRole('button', { name: /^(View captured details|Check suggested changes)$/ }).click();
   const chooseFields = page.getByRole('button', { name: 'View source and choose fields', exact: true });
   if (await chooseFields.isVisible()) await chooseFields.click();
   await page.getByRole('button', { name: 'Edit details manually', exact: true }).click();
@@ -173,8 +173,8 @@ test('a returned transcript is reviewed before being appended to conversation no
   await page.getByRole('button', { name: 'Capture a voice note', exact: true }).click();
   await expect(page.getByText(/^00:0[1-3]$/)).toBeVisible();
   await page.getByRole('button', { name: 'Stop and save recording', exact: true }).click();
-  await expect(page.getByRole('button', { name: /^(Review extracted text|Check suggested changes)$/ })).toBeVisible();
-  await page.getByRole('button', { name: /^(Review extracted text|Check suggested changes)$/ }).click();
+  await expect(page.getByRole('button', { name: /^(View captured details|Check suggested changes)$/ })).toBeVisible();
+  await page.getByRole('button', { name: /^(View captured details|Check suggested changes)$/ }).click();
   const chooseFields = page.getByRole('button', { name: 'View source and choose fields', exact: true });
   if (await chooseFields.isVisible()) await chooseFields.click();
   await page.getByRole('button', { name: 'Edit details manually', exact: true }).click();
@@ -204,7 +204,7 @@ test('mobile RFQ review protects corrected and cleared fields while applying sel
   await page.getByRole('button', { name: 'Capture a voice note', exact: true }).click();
   await expect(page.getByText(/^00:0[1-3]$/)).toBeVisible();
   await page.getByRole('button', { name: 'Stop and save recording', exact: true }).click();
-  await page.getByRole('button', { name: /^(Review extracted text|Check suggested changes)$/ }).click();
+  await page.getByRole('button', { name: /^(View captured details|Check suggested changes)$/ }).click();
   const chooseFields = page.getByRole('button', { name: 'View source and choose fields', exact: true });
   if (await chooseFields.isVisible()) await chooseFields.click();
   await page.getByRole('button', { name: 'Edit details manually', exact: true }).click();
@@ -263,7 +263,7 @@ test('late transcription stays with its original visitor while another conversat
   await expect(page.getByRole('button', { name: 'Play recording', exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: 'Visitors', exact: true }).click();
   await page.getByRole('button', { name: 'Open visitor Visitor A', exact: true }).click();
-  await expect(page.getByRole('button', { name: /^(Review extracted text|Check suggested changes)$/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /^(View captured details|Check suggested changes)$/ })).toBeVisible();
   await expect(page.getByText('Visitor A requires a bottle filler.', { exact: true })).toBeVisible();
   await expect(page.getByText('Only visitor B wants a canning line.', { exact: true })).toHaveCount(0);
   await page.reload();

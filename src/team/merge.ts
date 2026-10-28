@@ -20,7 +20,7 @@ export function mergeTeam(baseText: string | undefined, localText: string, remot
   }
   const draft: Draft = structuredClone(local.draft);
   for (const section of ['contact', 'request'] as const) {
-    for (const field of Object.keys(draft[section])) {
+    for (const field of new Set([...Object.keys(local.draft[section]), ...Object.keys(remote.draft[section])])) {
       if (field === 'unit') continue;
       const keys = field === 'throughput' ? ['throughput', 'unit'] : [field];
       const key = `${section}.${field}`;
@@ -51,6 +51,8 @@ export function mergeTeam(baseText: string | undefined, localText: string, remot
   draft.attachments = union(base.draft.attachments, local.draft.attachments, remote.draft.attachments, x => x.id, 'source');
   draft.entries = union(base.draft.entries ?? [], local.draft.entries ?? [], remote.draft.entries ?? [], x => x.id, 'entry');
   if (local.draft.ray || remote.draft.ray) draft.ray = union(base.draft.ray ?? [], local.draft.ray ?? [], remote.draft.ray ?? [], x => x.id, 'ray');
+  if (local.draft.rayQuestions || remote.draft.rayQuestions) draft.rayQuestions = union(base.draft.rayQuestions ?? [], local.draft.rayQuestions ?? [], remote.draft.rayQuestions ?? [], x => x.id, 'rayQuestion');
+  if (local.draft.conversationVersion || remote.draft.conversationVersion) draft.conversationVersion = 1;
   draft.appliedJobs = [...new Set([...local.draft.appliedJobs, ...remote.draft.appliedJobs])];
   draft.suggestions = [...new Map([...local.draft.suggestions, ...remote.draft.suggestions].map(x => [text(x), x])).values()];
   // Follow-up drafts belong to a sender; never claim a merged preview is ready.

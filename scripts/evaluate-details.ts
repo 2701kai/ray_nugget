@@ -1,7 +1,8 @@
 // Opt-in live evaluation: synthetic text only; uses company ADC and model quota.
+import { googleClient } from './google-client';
 import { googleDetails } from '../server/details';
 import { parseCapturedDetails } from '../src/domain/details';
-const model = googleDetails('bevmaq-platform', 'gemini-3.1-flash-lite');
+const model = googleDetails('bevmaq-platform', 'gemini-3.1-flash-lite', await googleClient('bevmaq-platform'));
 const cases = [
   { name: 'plain card', kind: 'card', text: 'Mara Lind\nSynthetic Bottling GmbH\nmara@example.test\n+49 30 55501234', expected: { name: 'Mara Lind', company: 'Synthetic Bottling GmbH', email: 'mara@example.test' } },
   { name: 'German memo', kind: 'voice', text: 'Ich habe mit Mara Lind von Synthetic Bottling GmbH gesprochen. Sie möchten eine Abfüllanlage kaufen. Sie brauchen Apfelsaft in Glasflaschen, mit einer Leistung von 2400 Flaschen pro Stunde.', expected: { name: 'Mara Lind', company: 'Synthetic Bottling GmbH', product: 'Apfelsaft', packaging: 'Glasflaschen', intent: 'buy', throughput: '2400', unit: 'bottles/h' } },

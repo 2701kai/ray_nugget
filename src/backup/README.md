@@ -38,3 +38,11 @@ restored. Follow-up previews become outdated because the salesperson may differ.
 
 Do not change this contract in place. An incompatible format requires a new magic
 and schema version plus an explicit migration strategy for existing backup files.
+
+Pete 0.8.0 keeps the v1 archive envelope and adds optional request qualifications,
+source-bound capture context, question decisions, and conversationVersion=1. Old
+archives remain readable. Restore preserves these facts and rebinds visitor IDs;
+it never activates Ray assistance or starts a new consultation. Pete 0.8.0+ is
+required to edit the enriched records. Hosted pointers reject updates from older
+clients that strip the conversation marker. No originals or decisions are dropped
+to make an older client accept a newer record.

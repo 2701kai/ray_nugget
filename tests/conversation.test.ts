@@ -1,0 +1,105 @@
+import { expect, test } from 'bun:test';
+import { createDraft, reduceDraft, type Attachment } from '../src/domain/draft';
+import { parseCapturedDetails } from '../src/domain/details';
+import { deferredQuestions, parseCaptureContext, sameRequirement } from '../src/domain/requirements';
+import { newJob, type ProcessingJob } from '../src/processing/jobs';
+import { reviewChanges } from '../src/processing/review';
+import { continuationBlock, canContinue } from '../src/ray/continuation';
+import { prepareRayInput, raySource } from '../src/ray/brief';
+import { parseRayInput, type RayAdvice } from '../src/ray/types';
+import { decodeManifest, encodeManifest, restoredSnapshot } from '../src/backup/archive';
+import { mergeTeam, manifestText } from '../src/team/merge';
+import { detailService, detailsId } from '../server/details';
+import { sqliteAtomic } from './helpers/sqlite-atomic';
+const at = '2026-10-28T10:00:00.000Z', later = '2026-10-28T10:01:00.000Z';
+const digest = async (bytes: Uint8Array) => new Bun.CryptoHasher('sha256').update(bytes).digest('hex');
+const questions = ['Which filling process?', 'Does the juice contain particles?', 'Which closure?'];
+const advice: RayAdvice = { id: 'a'.repeat(64), draftId: 'synthetic', sourceFingerprint: 'b'.repeat(64), createdAt: at, brief: 'Synthetic juice request', omitted: 0, pending: 0, text: 'Which filling process?', questions, machines: [], selectedSkus: [], sourceIds: [] };
+function fixture() {
+  let draft = reduceDraft(createDraft('synthetic', 'voice', 'Test fair', at), { type: 'edit', patch: { request: { product: 'fruit juice', packaging: 'glass bottles', throughput: '18000', unit: 'bottles/h', containerSize: '0.5 L' } } }, at);
+  draft = reduceDraft(draft, { type: 'rayAdvice', advice }, at);
+  const attachment: Attachment = { id: 'answer', kind: 'voice', name: 'Voice note', bytes: 3, mimeType: 'audio/webm', sha256: 'c'.repeat(64), capturedAt: later, context: { version: 1, request: draft.request, consultationId: advice.id, questions } };
+  draft = reduceDraft(draft, { type: 'attach', attachment }, later);
+  const text = 'Cold fill with downstream pasteurization, containing particles. Schraubverschluss.';
+  const candidates = [['fillingProcess', 'Cold fill with downstream pasteurization'], ['productProperties', 'containing particles'], ['closure', 'Schraubverschluss']].map(([field, value]) => ({ field: `request.${field}`, value, evidence: value, uncertain: false }));
+  const result = { ...parseCapturedDetails({ candidates, questions: [] }, text, 'voice'), text, engine: 'Synthetic' };
+  const job: ProcessingJob = { ...newJob(draft.id, attachment, Date.parse(later)), state: 'complete', result };
+  draft = reduceDraft(draft, { type: 'autofill', jobId: job.id, attachmentId: attachment.id, fields: result.fields, request: result.request }, later);
+  return { draft, job, attachment, candidates, text };
+}
+test('a multilingual follow-up adds separate attributes, preserving existing facts and evidence', () => {
+  const { draft, job } = fixture();
+  expect(draft.request).toMatchObject({ product: 'fruit juice', packaging: 'glass bottles', throughput: '18000', unit: 'bottles/h', containerSize: '0.5 L', fillingProcess: 'Cold fill with downstream pasteurization', productProperties: 'containing particles', closure: 'Schraubverschluss' });
+  expect(draft.provenance['request.closure'].attachmentId).toBe('answer');
+  expect(reviewChanges(draft, job)).toEqual([]);
+  expect(continuationBlock(draft, [job])).toBeUndefined();
+  expect(draft.conversationVersion).toBe(1);
+  expect(sameRequirement('fruit juice', 'Fruchtsaft')).toBe(true);
+  expect(sameRequirement('juice', 'nectar')).toBe(false);
+  expect(sameRequirement('apple juice', 'orange juice')).toBe(false);
+  expect(sameRequirement('glass bottles 0.5 L', 'glass bottles 1 L')).toBe(false);
+});
+test('processing, genuine conflicts and failures hold continuation; reviewed choices release it', () => {
+  const { draft, job } = fixture();
+  expect(continuationBlock(draft, [{ ...job, state: 'running' }])).toBe('processing');
+  expect(continuationBlock(draft, [{ ...job, state: 'failed' }])).toBe('failed');
+  const changed = { ...job, result: { ...job.result!, request: { capacity: { throughput: '9000', unit: 'bottles/h' as const } } } };
+  expect(continuationBlock(draft, [changed])).toBe('review');
+  expect(draft.request.throughput).toBe('18000');
+  expect(continuationBlock(draft, [{ ...changed, reviewedAt: 1 }])).toBeUndefined();
+  const translated = { ...job, result: { ...job.result!, request: { product: 'Fruchtsaft' } } };
+  expect(reviewChanges(draft, translated)).toEqual([]);
+  expect(canContinue({ enabled: true, attempts: 0, lastAt: 0 }, 'new', 11000)).toBe(true);
+  expect(canContinue({ enabled: true, attempts: 0, lastAt: 10000 }, 'new', 11000)).toBe(false);
+  expect(canContinue({ enabled: true, attempts: 0, lastAt: 0, lastSource: 'same' }, 'same', 11000)).toBe(false);
+  expect(canContinue({ enabled: true, attempts: 12, lastAt: 0 }, 'new', 11000)).toBe(false);
+  expect(canContinue({ enabled: false, attempts: 0, lastAt: 0 }, 'new', 11000)).toBe(false);
+});
+test('question context and deferred decisions survive restore and merge without starting assistance', async () => {
+  const { draft, job } = fixture();
+  const deferred = reduceDraft(draft, { type: 'rayQuestion', decision: { id: 'defer', consultationId: advice.id, question: questions[1], deferred: true, createdAt: later } }, later);
+  const bytes = encodeManifest({ draft: deferred, jobs: [job] });
+  const decoded = decodeManifest(bytes);
+  expect(decoded.draft.request).toEqual(deferred.request);
+  expect(decoded.draft.attachments[0].context).toEqual(draft.attachments[0].context);
+  expect(decoded.draft.rayQuestions).toEqual(deferred.rayQuestions);
+  const restored = restoredSnapshot({ ...decoded, fingerprint: 'd'.repeat(64), media: [] });
+  expect(restored.draft.ray![0].draftId).toBe(restored.draft.id);
+  expect(deferredQuestions(restored.draft.rayQuestions)).toEqual([questions[1]]);
+  const remote = reduceDraft(draft, { type: 'edit', patch: { request: { timing: 'next spring' } } }, later);
+  const merged = mergeTeam(manifestText({ draft, jobs: [job] }), manifestText({ draft: deferred, jobs: [job] }), manifestText({ draft: remote, jobs: [job] }));
+  expect(merged.conflicts).toEqual([]); expect(merged.snapshot.draft.request.timing).toBe('next spring'); expect(merged.snapshot.draft.rayQuestions).toEqual(deferred.rayQuestions);
+  const input = await prepareRayInput(deferred, [job], digest);
+  expect(parseRayInput(input)).toEqual(input);
+  expect(input.history?.[0]).toEqual({ role: 'assistant', text: questions.join('\n') });
+  expect(input.history?.[1].text).toBe(job.result!.text);
+  expect(input.history?.at(-1)?.text).toContain('unknown for now');
+  expect(input.sourceIds).toEqual(['answer']);
+  expect(raySource(deferred, [job])).not.toBe(raySource(draft, [job]));
+  expect(input.brief).toContain('18000 bottles/h'); expect(input.brief).toContain('fruit juice'); expect(input.brief).toContain('Schraubverschluss');
+});
+test('identical short answers with different questions have separate cached extractions; legacy results stay compatible', async () => {
+  const db = sqliteAtomic(); let calls = 0;
+  const { candidates, text } = fixture();
+  const service = detailService(db.store, { engine: 'synthetic', async extract(_, __, context) { calls++; expect(context === undefined || context.version === 1).toBe(true); return { candidates, questions: [] }; } });
+  const a = parseCaptureContext({ version: 1, request: {}, questions: [questions[0]] });
+  const b = parseCaptureContext({ ...a, questions: [questions[2]] });
+  expect(detailsId('voice', text, a)).not.toBe(detailsId('voice', text, b));
+  expect(detailsId('voice', text, a)).not.toBe(detailsId('voice', text));
+  expect((await service.extract('owner', detailsId('voice', text, a), 'voice', text, a)).result?.request?.closure).toBe('Schraubverschluss');
+  await service.extract('owner', detailsId('voice', text, a), 'voice', text, a); expect(calls).toBe(1);
+  await expect(service.extract('owner', detailsId('voice', text, a), 'voice', text, b)).rejects.toThrow('Invalid source');
+  const legacy = await service.extract('owner', detailsId('voice', text), 'voice', text);
+  expect(legacy.result?.request?.closure).toBeUndefined(); db.close();
+});
+test('foreign advice and facts cannot become answer context or source evidence', () => {
+  const { draft, attachment } = fixture();
+  expect(() => reduceDraft(draft, { type: 'attach', attachment: { ...attachment, id: 'other', sha256: 'e'.repeat(64), context: { ...attachment.context!, consultationId: 'f'.repeat(64) } } }, later)).toThrow('different advice');
+  expect(() => parseCapturedDetails({ candidates: [{ field: 'request.closure', value: 'screw cap', evidence: 'screw cap', uncertain: false }], questions: [] }, 'Yes', 'voice')).toThrow('matching source');
+});
+
+test('explicit unknowns and ungrounded clarification prompts do not force another review', () => {
+  const text = 'We do not know the particle size yet.';
+  const result = parseCapturedDetails({ candidates: [{ field: 'request.particleSize', value: 'particle size', evidence: text, uncertain: true }], questions: [{ question: 'What is the particle size?', evidence: text }, { question: 'What is the name?', evidence: '' }] }, text, 'voice');
+  expect(result.request).toBeUndefined(); expect(result.questions).toEqual([]);
+});

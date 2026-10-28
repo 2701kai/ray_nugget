@@ -54,7 +54,7 @@ test('installed shell reopens offline, keeps the selected visitor, and queues au
   await expect(page.getByText('Needs a glass bottle filler.', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Play recording', exact: true })).toBeVisible();
   await context.setOffline(false);
-  await expect(page.getByRole('button', { name: 'Review extracted text', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'View captured details', exact: true })).toBeVisible();
   expect(transcriptions).toBeGreaterThan(0);
   const allCached = await page.evaluate(async () => (await Promise.all((await caches.keys()).map(async key => (await (await caches.open(key)).keys()).map(r => r.url)))).flat());
   expect(allCached.some(url => url.includes(':8091') || url.includes('transcriptions'))).toBe(false);

@@ -1,16 +1,17 @@
 import { requestFields } from './details';
+import { requestKeys, qualificationKeys, parseCaptureContext, parseQuestionDecision, type CaptureContext, type QualificationKey, type QuestionDecision } from './requirements';
 import { parseRayAdvice, type RayAdvice } from '../ray/types';
 
 export type CaptureKind = 'contact' | 'request' | 'card' | 'voice';
 export type Contact = { name: string; company: string; email: string; phone: string };
-export type Request = {
+export type Request = Partial<Record<QualificationKey, string>> & {
   intent: 'buy' | 'sell' | 'unspecified';
   product: string;
   packaging: string;
   throughput: string;
   unit: '' | 'units/h' | 'bottles/h' | 'L/h';
 };
-export type RequestReview = Partial<Pick<Request, 'intent' | 'product' | 'packaging'>> & {
+export type RequestReview = Partial<Pick<Request, 'intent' | 'product' | 'packaging' | QualificationKey>> & {
   capacity?: Pick<Request, 'throughput' | 'unit'>;
 };
 export type Attachment = {
@@ -23,6 +24,7 @@ export type Attachment = {
   capturedAt: string;
   voiceMode?: 'memo' | 'conversation';
   consentConfirmed?: boolean;
+  context?: CaptureContext;
 };
 export type Sender = { name: string; company: string; phone: string };
 export type Followup = {
@@ -51,11 +53,14 @@ export type Draft = {
   suggestions: Array<{ field: keyof Contact; value: string; attachmentId: string; jobId: string }>;
   followup?: Followup;
   ray?: RayAdvice[];
+  rayQuestions?: QuestionDecision[];
+  conversationVersion?: 1;
 };
 export type Patch = { contact?: Partial<Contact>; request?: Partial<Request>; event?: string; note?: string };
 export type DraftAction =
   | { type: 'edit'; patch: Patch }
   | { type: 'addNote'; id: string; text: string }
+  | { type: 'rayQuestion'; decision: QuestionDecision }
   | { type: 'rayAdvice'; advice: RayAdvice }
   | { type: 'raySelect'; consultationId: string; sku: string; selected: boolean }
   | { type: 'attach'; attachment: Attachment }
@@ -122,7 +127,7 @@ export function reduceDraft(draft: Draft, action: DraftAction, now: string): Dra
       const patch = action.patch[section];
       if (!patch) continue;
       for (const [key, raw] of Object.entries(patch)) {
-        if (!(key in next[section]) || typeof raw !== 'string') throw new Error('Unsupported draft field.');
+        if (!(section === 'request' ? requestKeys.includes(key as keyof Request) : Object.hasOwn(next.contact, key)) || typeof raw !== 'string') throw new Error('Unsupported draft field.');
         if (raw.length > 2000) throw new Error('Keep individual fields under 2,000 characters.');
         Object.assign(next[section], { [key]: raw.trim() });
         next.provenance[`${section}.${key}`] = { source: 'manual', at: now };
@@ -137,6 +142,12 @@ export function reduceDraft(draft: Draft, action: DraftAction, now: string): Dra
     if (draft.entries?.some(entry => entry.id === action.id)) return draft;
     if (!action.text.trim() || action.text.length > 10000) throw new Error('Write a note of up to 10,000 characters.');
     next.entries = [...(draft.entries ?? []), { id: action.id, text: action.text.trim(), createdAt: now }];
+  } else if (action.type === 'rayQuestion') {
+    const decision = parseQuestionDecision(action.decision);
+    if (!draft.ray?.some(a => a.id === decision.consultationId && a.questions.includes(decision.question))) throw new Error('This question belongs to different advice.');
+    if (draft.rayQuestions?.some(d => d.id === decision.id)) return draft;
+    if ((draft.rayQuestions?.length ?? 0) >= 300) throw new Error('This visitor has reached the question history limit.');
+    next.rayQuestions = [...(draft.rayQuestions ?? []), decision];
   } else if (action.type === 'rayAdvice') {
     const advice = parseRayAdvice(action.advice);
     if (advice.draftId !== draft.id) throw new Error('Ray advice belongs to another visitor.');
@@ -152,6 +163,10 @@ export function reduceDraft(draft: Draft, action: DraftAction, now: string): Dra
     if (attachment.bytes <= 0 || attachment.bytes > mediaLimit(attachment.kind)) throw new Error(`Choose a non-empty file smaller than ${mediaLimit(attachment.kind) / 1024 / 1024} MiB.`);
     if (attachment.kind === 'voice' && attachment.voiceMode === 'conversation' && !attachment.consentConfirmed) throw new Error('Confirm consent before saving a conversation recording.');
     if (draft.attachments.some(a => a.id === attachment.id || (a.sha256 === attachment.sha256 && a.kind === attachment.kind))) return draft;
+    if (attachment.context) {
+      attachment.context = parseCaptureContext(attachment.context);
+      if (attachment.kind !== 'voice' || attachment.context.consultationId && !draft.ray?.some(a => a.id === attachment.context!.consultationId && attachment.context!.questions.every(q => a.questions.includes(q)))) throw new Error('The answer context belongs to different advice.');
+    }
     next.attachments.push(attachment);
   } else if (action.type === 'enrich' || action.type === 'autofill') {
     if (draft.appliedJobs.includes(action.jobId)) return draft;
@@ -210,6 +225,7 @@ export function reduceDraft(draft: Draft, action: DraftAction, now: string): Dra
     if (draft.followup?.state === 'prepared' && draft.followup.recipient === prepared.recipient && draft.followup.message === prepared.message) return draft;
     next.followup = { id: action.operationId, state: 'prepared', preparedAt: now, ...prepared };
   }
+  if (next.rayQuestions?.length || next.attachments.some(a => a.context) || qualificationKeys.some(k => next.request[k] !== undefined)) next.conversationVersion = 1;
   if (action.type !== 'followup' && next.followup && (next.contact.name !== draft.contact.name || next.contact.phone !== draft.contact.phone || next.event !== draft.event)) {
     next.followup = { ...next.followup, state: 'outdated' };
   }

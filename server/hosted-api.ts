@@ -20,7 +20,7 @@ export function hostedHandler(jobs: ReturnType<typeof hostedJobs>, verify: (toke
     const url = new URL(request.url);
     let path = url.pathname.replace(/^\/api(?=\/)/, '');
     if (request.method === 'OPTIONS') return allowedOrigins.includes(origin) ? new Response(null, { status: 204, headers: { ...headers, 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type, Authorization' } }) : json({ error: 'Forbidden origin.' }, 403);
-    if (path === '/health' && request.method === 'GET') return json({ ready: true, authentication: 'required', engine, automaticFilling: !!details, cloudSaving: !!cloud, leadIntake: !!cloud, crmDelivery: false, ray: !!ray });
+    if (path === '/health' && request.method === 'GET') return json({ ready: true, authentication: 'required', engine, automaticFilling: !!details, cloudSaving: !!cloud, leadIntake: !!cloud, crmDelivery: false, ray: !!ray, conversationAssistance: !!details && !!ray });
     if (origin && !allowedOrigins.includes(origin)) return json({ error: 'Forbidden origin.' }, 403);
     try {
       const token = request.headers.get('Authorization')?.match(/^Bearer (\S+)$/)?.[1];
@@ -34,7 +34,7 @@ export function hostedHandler(jobs: ReturnType<typeof hostedJobs>, verify: (toke
         if (!allowedOrigins.includes(origin)) throw new ApiError('A valid app origin is required.', 403);
         if (!ray) throw new ApiError('Ray is not connected yet. Your visitor stays saved.', 503);
         const raw = await request.text();
-        if (raw.length > 10000) throw new ApiError('Request too large.', 413);
+        if (raw.length > 160000) throw new ApiError('Request too large.', 413);
         let body; try { body = JSON.parse(raw); } catch { throw new ApiError('Invalid Ray request.'); }
         const result = await ray.consult(owner, rayRoute[1], body);
         return json(result, result.state === 'complete' ? 200 : 202);
@@ -91,7 +91,7 @@ export function hostedHandler(jobs: ReturnType<typeof hostedJobs>, verify: (toke
         let body;
         try { body = JSON.parse(raw); } catch { throw new ApiError('Invalid extraction request.'); }
         if (!body || typeof body !== 'object' || Array.isArray(body)) throw new ApiError('Invalid extraction request.');
-        const result = await details.extract(owner, extractionRoute[1], body.kind, body.text);
+        const result = await details.extract(owner, extractionRoute[1], body.kind, body.text, body.context);
         return json(result, result.state === 'complete' ? 200 : 202);
       }
       const route = path.match(/^\/transcriptions\/([a-f0-9]{64})(?:\/(upload|submit))?$/);

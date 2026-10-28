@@ -93,3 +93,13 @@ test('cloud API requires authentication and company account; foreign origins and
   expect((await request('media/not-a-hash', 'alice')).status).toBe(404);
   expect(ownerOf(await verify('alice'))).not.toBe(ownerOf(await verify('bob')));
 });
+
+test('an older client cannot strip conversation attributes from an accepted cloud visitor', async () => {
+  const f = fixture(); await f.init(); f.upload(); await f.service.complete('alice', f.attachment.sha256);
+  const next = reduceDraft(f.draft, { type: 'edit', patch: { request: { closure: 'screw cap', particleSize: '2 mm' } } }, date);
+  const saved = await f.service.save('alice', copyId, encodeManifest({ draft: next, jobs: [newJob(next.id, f.attachment)] }), null);
+  expect(saved.conversationVersion).toBe(1);
+  const old = { ...f.draft, revision: next.revision + 1 };
+  await expect(f.service.save('alice', copyId, encodeManifest({ draft: old, jobs: [newJob(old.id, f.attachment)] }), saved.fingerprint)).rejects.toMatchObject({ status: 409 });
+  expect((await f.service.get('alice', copyId))?.fingerprint).toBe(saved.fingerprint);
+});

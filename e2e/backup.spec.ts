@@ -110,7 +110,7 @@ test('offline backup transfers original photos and playable audio to a fresh dev
     await expect(targetPage.getByText('Processing paused · retry when ready', { exact: true })).toHaveCount(2);
     expect(transcriptions).toBe(0);
     await targetPage.getByRole('button', { name: 'Retry processing', exact: true }).last().click();
-    await expect(targetPage.getByRole('button', { name: 'Review extracted text', exact: true })).toBeVisible();
+    await expect(targetPage.getByRole('button', { name: 'View captured details', exact: true })).toBeVisible();
     expect(transcriptions).toBeGreaterThan(0);
     await expect(targetPage.getByText(/Synthetic restored recording/)).toBeVisible();
   } finally { await target.close(); }

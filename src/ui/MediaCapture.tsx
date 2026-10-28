@@ -57,6 +57,7 @@ export function VoiceCapture({ draft, workspace, done, lock, initialMode = 'memo
   const closed = useRef(false);
   const downloadActive = useRef(false);
   const sourceDraftId = useRef(draft.id).current;
+  const captureContext = useRef(workspace.captureContext(draft.id)).current;
   const pendingUri = useRef<string | null>(null);
   const active = useRef(false);
   const finishRef = useRef<() => void>(() => undefined);
@@ -134,7 +135,7 @@ export function VoiceCapture({ draft, workspace, done, lock, initialMode = 'memo
       const mimeType = Platform.OS === 'web' ? 'audio/webm' : 'audio/mp4';
       await workspace.attach(sourceDraftId, pendingUri.current, {
         kind: 'voice', name: mode === 'memo' ? 'Voice note' : 'Consented conversation', mimeType,
-        voiceMode: mode, consentConfirmed: mode === 'conversation' ? consent : undefined,
+        context: captureContext, voiceMode: mode, consentConfirmed: mode === 'conversation' ? consent : undefined,
       });
       pendingUri.current = null; closed.current = true; setPhase('idle'); done();
     } catch (e) { setPhase(recorder.isRecording ? 'recording' : pendingUri.current || discardPrompt.current ? 'retry' : 'idle'); setError(e instanceof Error ? e.message : 'The recording could not be saved.'); }

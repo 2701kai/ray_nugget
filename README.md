@@ -38,8 +38,9 @@ readable even if later extraction is paused. Field review stays separate.
 
 **Ask Ray** uses the current visitor's captured need to offer equipment advice,
 useful questions and up to three catalogue-backed machine candidates. **Answer by
-voice** adds details through the same recorder; **Ask Ray again** uses the new
-evidence. Advice and machine choices save with that visitor, including company
+voice** adds details through the same recorder. While **Ray assistance** is on,
+each saved answer updates the advice when processing finishes. Pause stops further
+consultations; a reload starts paused. Advice and machine choices save with that visitor, including company
 cloud copies and backups. Changed requirements mark earlier advice for refresh;
 suggestions never replace customer facts. Saved advice remains readable offline.
 New consultations require a connection, and failures never block capture or saving.
@@ -131,7 +132,7 @@ hash share cloud storage, while visitor identities are never guessed from names.
 Keep Pete open and online until **Saved to team**. Team sharing is currently
 web-only; native devices, real iPhone dictation, screen lock and long recordings
 still need physical acceptance. Use `pete.bevmaq.com` consistently. This does not
-connect CRM, Ray matching or automatic messaging.
+connect CRM or automatic messaging. Ray advice has its own authenticated route.
 
 Cloud originals use `bevmaq-platform-pete-originals`, separate from the temporary
 speech bucket and its one-day deletion rule. No automatic expiry is configured
@@ -355,7 +356,7 @@ of automatically submitting a duplicate. That case needs an operation check.
   notes, reviewed fields and source links. Offline restore creates a separate
   draft and keeps existing visitors and account preferences intact.
 
-CRM writes, Ray matching, and automatic WhatsApp sending remain future integrations.
+CRM writes and automatic WhatsApp sending remain future integrations. Ray advice is available inside the visitor.
 OCR contact parsing suggests unambiguous email/international phone values and
 labelled names/company names; it does not infer missing country codes. Review the
 source text and correct OCR/transcription errors before applying details.
@@ -501,3 +502,13 @@ small evaluation is not a general extraction-accuracy claim.
 
 The EU processing endpoint follows Google's
 [multi-region location guidance](https://docs.cloud.google.com/vertex-ai/generative-ai/docs/learn/locations).
+
+### Release numbers
+
+Pete 0.8.0 is a pilot feature release. During the pilot, 0.x.0 marks a substantial
+feature increment and 0.x.y a fix. The 1.0.0 milestone means the capture, recovery,
+sharing, and assisted conversation contracts are stable for everyday use and
+validated on the team's actual devices. It does not require a CRM integration or
+every planned feature. After 1.0, compatible features increment the minor number;
+breaking contract changes increment the major number. Existing customer records
+remain protected regardless of the version label. See [Semantic Versioning](https://semver.org/).

@@ -1,11 +1,14 @@
 export type RayInput = {
-  version: 1; draftId: string; sourceFingerprint: string; window: number;
+  version: 1 | 2; draftId: string; sourceFingerprint: string; window: number;
   brief: string; omitted: number; pending: number;
+  history?: Array<{ role: 'user' | 'assistant'; text: string }>;
+  sourceIds?: string[];
 };
 export type RayMachine = { sku: string; title: string; manufacturer: string; url: string; updated: string };
 export type RayAdvice = {
   id: string; draftId: string; sourceFingerprint: string; createdAt: string;
   brief: string; omitted: number; pending: number; text: string;
+  sourceIds?: string[];
   questions: string[]; machines: RayMachine[]; selectedSkus: string[];
 };
 const fail = () => { throw new Error('Invalid Ray result.'); };
@@ -22,9 +25,10 @@ export function machineUrl(value: unknown): string {
 }
 export function parseRayInput(value: unknown): RayInput {
   const v = obj(value);
-  if (v.version !== 1) fail();
+  if (v.version !== 1 && v.version !== 2) fail();
   const brief = str(v.brief, 1450); if (!brief.trim()) fail();
-  return { version: 1, draftId: id(v.draftId), sourceFingerprint: hash(v.sourceFingerprint), window: count(v.window, Number.MAX_SAFE_INTEGER), brief, omitted: count(v.omitted), pending: count(v.pending, 250) };
+  const history = v.version === 2 ? list(v.history, 8).map(raw => { const t = obj(raw); if (t.role !== 'user' && t.role !== 'assistant') fail(); return { role: t.role as 'user' | 'assistant', text: str(t.text, 2000) }; }) : undefined;
+  return { version: v.version as 1 | 2, ...(history ? { history, sourceIds: list(v.sourceIds, 250).map(id) } : {}), draftId: id(v.draftId), sourceFingerprint: hash(v.sourceFingerprint), window: count(v.window, Number.MAX_SAFE_INTEGER), brief, omitted: count(v.omitted), pending: count(v.pending, 250) };
 }
 export const rayInputText = (value: RayInput) => JSON.stringify(parseRayInput(value));
 export function parseRayAdvice(value: unknown): RayAdvice {
@@ -37,6 +41,6 @@ export function parseRayAdvice(value: unknown): RayAdvice {
   const selectedSkus = list(v.selectedSkus, 3).map(id);
   if (new Set(machines.map(m => m.sku)).size !== machines.length || new Set(selectedSkus).size !== selectedSkus.length || selectedSkus.some(sku => !machines.some(m => m.sku === sku))) fail();
   return { id: hash(v.id), draftId: id(v.draftId), sourceFingerprint: hash(v.sourceFingerprint), createdAt,
-    brief: str(v.brief, 1450), omitted: count(v.omitted), pending: count(v.pending, 250), text: str(v.text, 12000),
+    ...(v.sourceIds === undefined ? {} : { sourceIds: list(v.sourceIds, 250).map(id) }), brief: str(v.brief, 1450), omitted: count(v.omitted), pending: count(v.pending, 250), text: str(v.text, 12000),
     questions: list(v.questions, 3).map(q => str(q, 500)), machines, selectedSkus };
 }

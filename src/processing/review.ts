@@ -1,9 +1,10 @@
+import { requestTextKeys, requestLabels, sameRequirement } from '../domain/requirements';
 import type { Contact, Draft, RequestReview } from '../domain/draft';
 import type { ProcessingJob } from './jobs';
 import { requestCandidates } from './request';
 
 export type ReviewChange = {
-  key: `contact.${keyof Contact}` | 'request.intent' | 'request.product' | 'request.packaging' | 'request.capacity';
+  key: `contact.${keyof Contact}` | 'request.intent' | `request.${typeof requestTextKeys[number]}` | 'request.capacity';
   label: string;
   saved: string;
   proposed: string;
@@ -39,12 +40,12 @@ export function reviewChanges(draft: Draft, job: ProcessingJob): ReviewChange[] 
   if (job.kind !== 'voice') return changes;
   const legacy = !result.request && !result.evidence ? requestCandidates(result.text) : undefined;
   const request = result.request || { product: legacy?.product?.value, packaging: legacy?.packaging?.value, capacity: legacy?.capacity?.value };
-  for (const field of ['intent', 'product', 'packaging'] as const) {
+  for (const field of ['intent', ...requestTextKeys] as const) {
     const value = request[field];
-    if (!value || value === draft.request[field]) continue;
+    if (!value || sameRequirement(value, draft.request[field])) continue;
     const key = `request.${field}` as const;
     const display = (v: string) => field === 'intent' ? v === 'buy' ? 'Buying' : v === 'sell' ? 'Selling' : 'Still needed' : v;
-    changes.push({ key, label: { intent: 'Buying or selling', product: 'Product to fill', packaging: 'Container / packaging' }[field], saved: display(draft.request[field]) || (draft.provenance[key] ? 'Left blank intentionally' : 'Not added yet'), proposed: display(value), evidence: result.evidence?.[key] || (field !== 'intent' ? legacy?.[field]?.evidence : undefined), request: { [field]: value }, superseded: newerDecision(draft, job, key) });
+    changes.push({ key, label: { intent: 'Buying or selling', ...requestLabels }[field], saved: display(draft.request[field] ?? '') || (draft.provenance[key] ? 'Left blank intentionally' : 'Not added yet'), proposed: display(value), evidence: result.evidence?.[key] || (field === 'product' || field === 'packaging' ? legacy?.[field]?.evidence : undefined), request: { [field]: value }, superseded: newerDecision(draft, job, key) });
   }
   const capacity = request.capacity;
   if (capacity && (capacity.throughput !== draft.request.throughput || capacity.unit !== draft.request.unit)) {
