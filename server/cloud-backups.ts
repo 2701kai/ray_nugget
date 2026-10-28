@@ -5,12 +5,13 @@ import type { AtomicStore } from './hosted-store';
 import type { hostedStorage } from './hosted-storage';
 import { leadIntake, type TeamContext } from './lead-intake';
 import type { LeadReceipt } from '../src/leads/types';
+import type { crmOutbox } from './crm-outbox';
 
 export type CloudCopy = { id: string; draftId: string; fingerprint: string; revision: number; title: string; company: string; savedAt: string; createdBy?: string; updatedBy?: string; intakeVersion?: 1; lead?: LeadReceipt };
 type Media = { bytes: number; mimeType: string; verified?: boolean; uploadUrl?: string; startedAt: number };
 const sha = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex');
-export function cloudBackups(store: AtomicStore, storage: ReturnType<typeof hostedStorage>, list: (owner: string) => Promise<CloudCopy[]>, now = Date.now) {
-  const intake = leadIntake(store, storage, now);
+export function cloudBackups(store: AtomicStore, storage: ReturnType<typeof hostedStorage>, list: (owner: string) => Promise<CloudCopy[]>, now = Date.now, outbox?: ReturnType<typeof crmOutbox>) {
+  const intake = leadIntake(store, storage, now, outbox);
   const object = (owner: string, id: string) => `owners/${owner}/media/${id}`;
   const mediaKey = (owner: string, id: string) => `cloudOwners/${owner}/media/${id}`;
   const draftKey = (owner: string, id: string) => `cloudOwners/${owner}/drafts/${id}`;
@@ -62,7 +63,11 @@ export function cloudBackups(store: AtomicStore, storage: ReturnType<typeof host
     const pending = team ? await intake.prepare(owner, id, snapshot, fingerprint, team) : undefined;
     return store.atomic([key, ...(pending?.keys ?? [])], records => {
       const current = records[key] as CloudCopy | undefined;
-      if (current?.fingerprint === fingerprint && (!pending || current.intakeVersion === 1)) return { result: current };
+      if (current?.fingerprint === fingerprint && (!pending || current.intakeVersion === 1)) {
+        // Explicitly enabled destinations can backfill the current accepted
+        // source once. The cloud pointer and its user-visible receipt stay intact.
+        return { result: current, writes: outbox ? pending?.commit(records, current).writes : undefined };
+      }
       if (current?.fingerprint !== fingerprint && ((current?.fingerprint ?? null) !== expected || (current && (current.draftId !== draft.id || current.revision > draft.revision)))) throw new ApiError('This cloud copy changed in another tab. Pete will retry from the latest local draft.', 409);
       const receipt = pending?.commit(records, current);
       const saved: CloudCopy = team ? { ...value, createdBy: current?.createdBy || team.actor, updatedBy: team.actor, intakeVersion: 1, ...(receipt?.lead ? { lead: receipt.lead } : {}) } : value;

@@ -30,7 +30,7 @@ export function prepareCrmDelivery(input: Omit<CrmDelivery, 'format' | 'operatio
   return { ...input, owner: { ...input.owner }, format: 'pete-crm-delivery/v1', operationId: sha(`pete-crm/v1/${input.leadId}/${input.sequence}`) };
 }
 
-function parseReceipt(body: unknown, sent: CrmDelivery): CrmReceipt {
+export function parseCrmReceipt(body: unknown, sent: CrmDelivery): CrmReceipt {
   if (!body || typeof body !== 'object') throw new CrmDeliveryError('CRM returned an invalid receipt.', false);
   const row = body as Partial<CrmReceipt>;
   if (row.format !== 'pete-crm-receipt/v1' || row.operationId !== sent.operationId || row.leadId !== sent.leadId
@@ -54,8 +54,15 @@ export function crmDelivery(options: {
       || endpoint.username || endpoint.password || endpoint.search || endpoint.hash || !endpoint.pathname.endsWith('/')) {
     throw new Error('CRM intake requires an explicit HTTPS endpoint ending in / (loopback is allowed for tests).');
   }
+  const destinationId = sha(`pete-crm-destination/v1/${endpoint.href}/${options.audience}`);
   async function request(method: 'POST' | 'GET', delivery: CrmDelivery): Promise<CrmReceipt | undefined> {
-    const token = await options.token(options.audience);
+    let token: string;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try { token = await Promise.race([options.token(options.audience), new Promise<never>((_resolve, reject) => {
+      timer = setTimeout(() => reject(new Error('Identity timeout')), options.timeoutMs ?? 20_000);
+    })]); }
+    catch { throw new CrmDeliveryError('CRM service identity is unavailable.', true); }
+    finally { clearTimeout(timer); }
     const url = method === 'POST' ? endpoint.href : `${endpoint.href}operations/${delivery.operationId}`;
     let response: Response;
     try {
@@ -69,10 +76,13 @@ export function crmDelivery(options: {
     }
     if (method === 'GET' && response.status === 404) return undefined;
     if (!response.ok) throw new CrmDeliveryError('CRM has not acknowledged this delivery.', response.status >= 500 || [408, 429].includes(response.status), response.status);
-    try { return parseReceipt(await response.json(), delivery); }
-    catch (error) { if (error instanceof CrmDeliveryError) throw error; throw new CrmDeliveryError('CRM returned an invalid receipt.', false); }
+    let body: unknown;
+    try { body = await response.json(); }
+    catch { throw new CrmDeliveryError('CRM acknowledgment could not be read; recover the saved receipt.', true); }
+    return parseCrmReceipt(body, delivery);
   }
   return {
+    destinationId,
     async send(delivery: CrmDelivery) { return (await request('POST', delivery))!; },
     receipt(delivery: CrmDelivery) { return request('GET', delivery); },
   };

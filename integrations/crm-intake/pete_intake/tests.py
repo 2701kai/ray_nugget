@@ -181,6 +181,14 @@ class ConcurrencyTests(TransactionTestCase):
 
 
 class HttpInteropTests(LiveServerTestCase):
+    def test_durable_worker_recovers_after_restart_without_duplicate_post(self):
+        with patch("pete_intake.auth.verify_oauth2_token", return_value=CLAIMS):
+            result = subprocess.run(["bun", "scripts/crm-outbox-probe.ts", f"{self.live_server_url}{URL}"], cwd=ROOT, capture_output=True, text=True, timeout=30)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(IntakeLead.objects.count(), 1)
+        self.assertEqual(IntakeOperation.objects.count(), 2)
+        self.assertEqual(IntakeLead.objects.get().owner_version, 2)
+
     def test_bun_sender_against_real_django_http_receiver(self):
         with patch("pete_intake.auth.verify_oauth2_token", return_value=CLAIMS):
             result = subprocess.run(["bun", "scripts/crm-receiver-probe.ts", f"{self.live_server_url}{URL}"], cwd=ROOT, capture_output=True, text=True, timeout=30)

@@ -52,3 +52,12 @@ test('CRM timeout, rejection and missing-receipt states stay distinct', async ()
   await expect(api.send(fixture)).rejects.toMatchObject({ retryable: true });
   expect(await crmDelivery({ ...options, fetch: reply({}, 404) }).receipt(fixture)).toBeUndefined();
 });
+
+test('temporary identity and truncated-response failures can recover, without submitting after token timeout', async () => {
+  let calls = 0;
+  const unavailable = crmDelivery({ ...options, timeoutMs: 5, token: async () => new Promise<string>(() => {}), fetch: async () => { calls++; return Response.json(receipt); } });
+  await expect(unavailable.send(fixture)).rejects.toMatchObject({ retryable: true });
+  expect(calls).toBe(0);
+  await expect(crmDelivery({ ...options, token: async () => { throw new Error('Synthetic identity failure'); } }).send(fixture)).rejects.toMatchObject({ retryable: true });
+  await expect(crmDelivery({ ...options, fetch: async () => new Response('{') }).send(fixture)).rejects.toMatchObject({ retryable: true });
+});

@@ -80,8 +80,10 @@ changes. Source receipts retain their history independently of later assignments
 See [the intake contract](server/lead-intake.md) for identity and storage semantics.
 
 The [isolated CRM adapter](integrations/crm-intake/README.md) contains a tested
-Bun sender and a dedicated Django intake receiver. It remains disconnected from
-production; the durable delivery worker and CRM rollout are separate work.
+Bun sender and a dedicated Django intake receiver. Its [durable outbox and worker](server/crm-outbox.md)
+are tested, including retry recovery after a worker restart. Production activation,
+CRM rollout and scheduling remain separate work; current capture creates no live
+CRM delivery queue.
 
 **Personal cloud backups** in **Settings** opens a separate local
 copy under the same Google account. It lists up to 1,000 recent copies. Existing

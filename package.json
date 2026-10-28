@@ -24,6 +24,7 @@
     "server": "bun server/index.ts",
     "test:hosted": "playwright test --config playwright.hosted.config.ts",
     "test:crm": "bun scripts/test-crm-receiver.ts --postgres",
+    "worker:crm": "bun server/run-crm-worker.ts",
     "test:updates": "playwright test --config playwright.update.config.ts",
     "eval:details": "bun scripts/evaluate-details.ts"
   },

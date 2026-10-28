@@ -4,6 +4,10 @@ This is an **isolated, non-sending integration package**, not a deployed CRM
 endpoint. The Pete API does not import or run the sender. Production still reports
 `crmDelivery: false` and the app says CRM transfer is not connected.
 
+The [durable outbox and worker](../../server/crm-outbox.md) are now implemented
+and tested separately. The hosted producer remains disabled and no job/schedule
+or live customer queue has been activated.
+
 The receiver targets the inspected Django 5.1.3 / Python 3.11 CRM runtime. Its
 compatibility environment pins those versions; it is not an upgrade proposal or
 a claim that these are the latest versions. No CRM checkout, database, service
@@ -90,13 +94,12 @@ token is minted. Actual IAM, proxy and deployed CRM integration remain untested.
 
 ## Remaining activation work
 
-1. Build the durable Pete producer/worker. Allocate the delivery sequence in the
-   same transaction as accepting a source or owner change. Persist the exact
-   payload before sending; retry that operation after timeouts. A draft revision
-   alone is insufficient: source processing and owner changes can advance
-   independently. Leases, backoff, failure visibility and durable destination
-   receipts still need implementation. This module does not claim that worker
-   already exists.
+1. Activate the tested producer/worker only after destination verification. The
+   producer now appends source/owner operations atomically; the worker has leases,
+   bounded backoff, failure states and durable receipt recovery. Production wiring,
+   a deployed job/schedule, monitoring and user-visible destination status still
+   need implementation. See the outbox contract for explicit enablement and
+   destination-migration constraints.
 2. Integrate `pete_intake.apps.PeteIntakeConfig` and its migration in a dedicated
    CRM change. Mount its URLs separately from existing form endpoints. Add an
    inbox view or explicitly reviewed promotion into existing sales records;
