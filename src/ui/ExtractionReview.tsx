@@ -3,6 +3,7 @@ import { Pressable, ScrollView, View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import type { Contact, Draft, RequestReview } from '../domain/draft';
 import type { ProcessingJob } from '../processing/jobs';
+import { changedDetails, reviewChanges } from '../processing/review';
 import { requestCandidates } from '../processing/request';
 import type { Workspace } from '../useWorkspace';
 import { Button, Choice, ErrorNotice, Field, Sheet, Txt } from './primitives';
@@ -13,6 +14,8 @@ const labels: Record<keyof Contact, string> = { name: 'Full name', company: 'Com
 
 export function ExtractionReview({ job, draft, workspace, close }: { job: ProcessingJob; draft: Draft; workspace: Workspace; close: () => void }) {
   const [revision] = useState(draft.revision);
+  const [changes] = useState(() => reviewChanges(draft, job).filter(change => !change.superseded));
+  const [detailed, setDetailed] = useState(!changes.length);
   const [editing, setEditing] = useState(false);
   const [values, setValues] = useState<Contact>({ ...draft.contact, ...job.result?.fields });
   const [selected, setSelected] = useState<Partial<Record<keyof Contact, boolean>>>(() => Object.fromEntries(
@@ -59,7 +62,31 @@ export function ExtractionReview({ job, draft, workspace, close }: { job: Proces
     } catch (e) { setError(e instanceof Error ? e.message : 'Could not save the review.'); }
     finally { setBusy(false); }
   }
-  return <Sheet title={job.kind === 'card' ? 'Read. Check. Keep.' : 'Review the conversation.'} subtitle="The original stays attached to this visitor" locked={busy} onClose={close}>
+  async function acceptChanges() {
+    if (busy) return;
+    setBusy(true); setError('');
+    try {
+      const patch = changedDetails(changes);
+      await workspace.reviewJob(job.id, patch.fields, revision, { request: patch.request });
+      close();
+    } catch (e) { setError(e instanceof Error ? e.message : 'Could not save the changes.'); }
+    finally { setBusy(false); }
+  }
+  return <Sheet title={!detailed ? 'Check these changes.' : job.kind === 'card' ? 'Read. Check. Keep.' : 'Review the conversation.'} subtitle="The original stays attached to this visitor" locked={busy} onClose={close}>
+    {!detailed ? <>
+      <Txt>Your saved details stay as they are until you confirm.</Txt>
+      {changes.map(change => <View key={change.key} style={{ borderWidth: 1, borderColor: colors.line, borderRadius: 12, padding: 16, gap: 10 }}>
+        <Txt weight="bold">{change.label}</Txt>
+        <View style={{ gap: 3 }}><Txt style={{ fontSize: 16, color: colors.muted }}>Saved</Txt><Txt selectable>{change.saved}</Txt></View>
+        <View style={{ gap: 3 }}><Txt style={{ fontSize: 16, color: colors.green }}>From this {job.kind === 'voice' ? 'recording' : 'card'}</Txt><Txt selectable weight="bold" style={{ fontSize: 20 }}>{change.proposed}</Txt></View>
+        {!!change.evidence && <Txt selectable style={{ fontSize: 16, color: colors.muted }}>“{change.evidence}”</Txt>}
+      </View>)}
+      {!!job.result?.questions?.length && <View style={{ gap: 8 }}><Txt weight="semibold">Still unclear</Txt>{job.result.questions.map((question, i) => <Txt key={i}>{question}</Txt>)}<Txt style={{ color: colors.muted }}>You can add another voice note after checking these changes.</Txt></View>}
+      <ErrorNotice message={error} />
+      <Button label={busy ? 'Saving changes…' : changes.length === 1 ? 'Use this change' : 'Use these changes'} disabled={busy} icon="check" onPress={acceptChanges} />
+      <Button label="Keep saved details" kind="secondary" disabled={busy} onPress={() => finish(false)} />
+      <Button label="View source and choose fields" kind="quiet" disabled={busy} onPress={() => setDetailed(true)} />
+    </> : <>
     <Txt style={{ color: colors.muted, fontSize: 16 }}>Clear details are already added. Check alternatives here if something differs. Your corrections are kept unless you choose a replacement.</Txt>
     <View style={{ backgroundColor: colors.pale, padding: 16, borderRadius: 12, gap: 8 }}>
       <Txt weight="semibold" style={{ fontSize: 16 }}>{job.kind === 'card' ? 'Text read from the card' : 'Transcript'}</Txt>
@@ -98,6 +125,7 @@ export function ExtractionReview({ job, draft, workspace, close }: { job: Proces
       <Button label={busy ? 'Saving review…' : 'Apply selected details'} disabled={busy || (!append && !useIntent && !Object.values(selected).some(Boolean) && !Object.values(requestSelected).some(Boolean))} icon="check" onPress={() => finish(true)} />
       <Button label="Keep existing details" disabled={busy} kind="quiet" onPress={() => finish(false)} />
     </>}
+    </>}
   </Sheet>;
 }
 
@@ -117,9 +145,11 @@ export function ProcessingStatus({ draft, attachmentId, workspace }: { draft: Dr
   const job = workspace.jobs.find(task => task.draftId === draft.id && task.attachmentId === attachmentId);
   if (!job) return null;
   const available = workspace.supportedKinds.includes(job.kind);
-  const conflicts = !!job.result && (Object.entries(job.result.fields).some(([field, value]) => draft.contact[field as keyof Contact] !== value) || Object.entries(job.result.request || {}).some(([field, value]) => field === 'capacity' ? draft.request.throughput !== job.result!.request!.capacity!.throughput || draft.request.unit !== job.result!.request!.capacity!.unit : draft.request[field as 'intent' | 'product' | 'packaging'] !== value));
+  const changes = reviewChanges(draft, job);
+  const conflicts = changes.some(change => !change.superseded);
+  const superseded = changes.some(change => change.superseded);
   const filled = Object.values(draft.provenance).some(origin => origin.jobId === job.id);
-  const label = job.state === 'complete' ? job.reviewedAt !== undefined ? 'Reviewed · source text kept' : conflicts || job.result?.questions?.length ? 'A detail needs checking · your existing details are kept' : filled ? 'Details added automatically' : 'Source saved · add more details by voice'
+  const label = job.state === 'complete' ? job.reviewedAt !== undefined ? 'Reviewed · source text kept' : conflicts || job.result?.questions?.length ? 'A detail needs checking · your existing details are kept' : superseded ? 'Earlier details · newer values kept' : filled ? 'Details added automatically' : 'Source saved · add more details by voice'
     : !available ? job.kind === 'voice' ? 'Transcription connection needed' : 'Card reading available in the browser preview'
     : job.state === 'running' ? job.kind === 'voice' ? 'Listening and filling details · original is safe' : 'Reading the card and filling details…'
     : job.state === 'failed' ? 'Processing paused · retry when ready'
@@ -128,7 +158,7 @@ export function ProcessingStatus({ draft, attachmentId, workspace }: { draft: Dr
     <Txt accessibilityLiveRegion="polite" style={{ fontSize: 16, lineHeight: 24, color: job.state === 'failed' ? colors.danger : colors.green }}>{label}</Txt>
     {!!job.error && <Txt style={{ fontSize: 16, color: colors.muted }}>{job.error}</Txt>}
     <ErrorNotice message={error} />
-    {job.state === 'complete' && <Button label={job.reviewedAt !== undefined ? 'View source text' : 'Review extracted text'} kind="secondary" onPress={() => setReviewing(true)} />}
+    {job.state === 'complete' && <Button label={job.reviewedAt !== undefined ? 'View source text' : conflicts ? 'Check suggested changes' : 'Review extracted text'} kind="secondary" onPress={() => setReviewing(true)} />}
     {job.state === 'failed' && available && <Button label="Retry processing" kind="secondary" onPress={async () => { try { await workspace.retryJob(job.id); } catch { setError('Could not queue the retry.'); } }} />}
     {reviewing && <ExtractionReview key={job.id} job={job} draft={draft} workspace={workspace} close={() => setReviewing(false)} />}
   </View>;

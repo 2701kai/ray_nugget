@@ -191,7 +191,9 @@ of automatically submitting a duplicate. That case needs an operation check.
 - New visitor opens straight into the conversation. Speaking and photographing a
   card require no contact/request form. Clear extracted details fill empty fields
   automatically; manual edits, deliberate blanks and earlier values are preserved.
-  Conflicting results remain available for a tap-to-select review; typing is optional.
+  Conflicting results show the saved and proposed values together. Confirm all shown
+  changes with one tap, keep saved details, or choose individual fields; typing is
+  optional. Older sources stop raising conflict warnings after a newer correction.
 - Hosted OCR text and transcripts are interpreted by `gemini-3.1-flash-lite` through
   the company's EU multi-region endpoint (`aiplatform.eu.rep.googleapis.com`, location
   `eu`). A single structured call proposes contact details and voice-derived buying/
@@ -347,8 +349,8 @@ no live identity is changed and no fixture reaches Google. The suite exercises
 real local OCR, microphone capture, automatic filling without form entry, delayed
 visitor association, source checkpoint reuse, reload and optional manual review.
 `bun run eval:details` is a separate, opt-in **live company-GCP** check using only
-seven committed synthetic texts (English/German, clear and ambiguous input, and
-embedded instructions). It consumes model quota and requires ADC. Passing that
+nine committed synthetic texts (English/German, follow-ups and corrections, clear
+and ambiguous input, and embedded instructions). It consumes model quota and requires ADC. Passing that
 small evaluation is not a general extraction-accuracy claim.
 
 The EU processing endpoint follows Google's

@@ -96,3 +96,55 @@ test('interrupted extraction reuses saved transcript and fills the original visi
   expect(transcripts).toBe(1); expect(extractions).toBe(2);
   await page.getByRole('button', { name: 'Details & request', exact: true }).click(); await expect(page.getByText('juice', { exact: true })).toBeVisible();
 });
+
+test('spoken follow-ups fill missing details and a correction needs only a tap, without stale warnings', async ({ page }) => {
+  let captures = 0;
+  const texts = ['Mara Lind needs juice at 2400 bottles per hour.', 'The container is a glass bottle.', 'Correction: we need 3000 bottles per hour.', 'We need milk.'];
+  const results = [
+    { fields: { name: 'Mara Lind' }, request: { product: 'juice', capacity: { throughput: '2400', unit: 'bottles/h' } } },
+    { fields: {}, request: { packaging: 'glass bottle' } },
+    { fields: {}, request: { capacity: { throughput: '3000', unit: 'bottles/h' } } },
+    { fields: {}, request: { product: 'milk' } },
+  ];
+  await page.route('**/api/transcriptions/**', route => route.fulfill({ json: { state: 'complete', text: texts[captures++], engine: 'Synthetic speech' } }));
+  await page.route('**/api/extractions/**', route => {
+    const index = texts.indexOf(route.request().postDataJSON().text);
+    expect(index).toBeGreaterThanOrEqual(0);
+    return route.fulfill({ json: { state: 'complete', engine: 'Synthetic details', result: { ...results[index], evidence: index === 2 ? { 'request.throughput': texts[index] } : {}, questions: index === 3 ? ['Which company is this visitor from?'] : [] } } });
+  });
+  await page.goto('/'); await page.getByRole('button', { name: 'New visitor', exact: true }).click();
+  await record(page); await expect(page.getByRole('heading', { name: 'Mara Lind', exact: true })).toBeVisible();
+  await record(page); await expect(page.getByText('Details added automatically', { exact: true })).toHaveCount(2);
+  await page.getByRole('button', { name: 'Details & request', exact: true }).click();
+  await expect(page.getByText('glass bottle', { exact: true })).toBeVisible();
+  await expect(page.getByText('2400 bottles/h', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Conversation', exact: true }).click();
+  await record(page);
+  await page.getByRole('button', { name: 'Check suggested changes', exact: true }).click();
+  await expect(page.getByRole('textbox')).toHaveCount(0);
+  await expect(page.getByText('2400 bottles/h', { exact: true })).toBeVisible();
+  await expect(page.getByText('3000 bottles/h', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Use this change', exact: true })).toBeInViewport();
+  await page.screenshot({ path: test.info().outputPath('spoken-correction-mobile.png'), animations: 'disabled' });
+  await page.setViewportSize({ width: 320, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await expect(page.getByRole('button', { name: 'Use this change', exact: true })).toBeInViewport();
+  await page.screenshot({ path: test.info().outputPath('spoken-correction-320.png'), animations: 'disabled' });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole('button', { name: 'Use this change', exact: true }).click();
+  await expect(page.getByText('Earlier details · newer values kept', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Check suggested changes', exact: true })).toHaveCount(0);
+  await page.reload();
+  await page.getByRole('button', { name: 'Details & request', exact: true }).click();
+  await expect(page.getByText('3000 bottles/h', { exact: true })).toBeVisible();
+  await expect(page.getByText('juice', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Conversation', exact: true }).click();
+  await record(page); await page.getByRole('button', { name: 'Check suggested changes', exact: true }).click();
+  await expect(page.getByText('Which company is this visitor from?', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Keep saved details', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Check suggested changes', exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Details & request', exact: true }).click();
+  await expect(page.getByText('juice', { exact: true })).toBeVisible();
+  await expect(page.getByRole('textbox')).toHaveCount(0);
+  expect(captures).toBe(4);
+});
