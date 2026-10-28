@@ -35,6 +35,11 @@ test('card and speech fill one visitor without typing or a required review; relo
   await (await chooser).setFiles({ name: 'synthetic-card.png', mimeType: 'image/png', buffer: Buffer.from(png, 'base64') });
   await expect(page.getByRole('heading', { name: 'Mara Lind', exact: true })).toBeVisible({ timeout: 45000 });
   await expect(page.getByText('Details added automatically', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Read card text', exact: true }).click();
+  await expect(page.getByRole('dialog').getByTestId('source-reader-text')).toContainText('mara@example.test');
+  await expect(page.getByRole('dialog').getByRole('textbox')).toHaveCount(0);
+  await page.getByRole('dialog').getByRole('button', { name: 'Close', exact: true }).click();
+  await expect(page.getByText('Details added automatically', { exact: true })).toBeVisible();
   await record(page);
   await expect(page.getByText('Details added automatically', { exact: true })).toHaveCount(2);
   await page.getByRole('button', { name: 'Details & request', exact: true }).click();

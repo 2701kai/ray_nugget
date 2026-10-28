@@ -5,6 +5,7 @@ import { MediaItem } from './DraftDetail';
 import { Icon } from './Icon';
 import { Eyebrow, Txt, useControlsDisabled } from './primitives';
 import { colors } from './theme';
+import { SourceText } from './SourceText';
 
 export function Conversation({ draft, workspace }: { draft: Draft; workspace: Workspace }) {
   const capturing = useControlsDisabled();
@@ -25,7 +26,7 @@ export function Conversation({ draft, workspace }: { draft: Draft; workspace: Wo
       <Eyebrow>{entry.kind === 'note' ? 'NOTE' : entry.item.kind === 'card' ? 'BUSINESS CARD' : entry.item.voiceMode === 'conversation' ? 'CONVERSATION' : 'VOICE NOTE'} · {new Date(entry.at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</Eyebrow>
       {entry.kind === 'media' ? <>
         <MediaItem draft={draft} item={entry.item} workspace={workspace} />
-        {!!workspace.jobs.find(job => job.attachmentId === entry.id && job.draftId === draft.id)?.result?.text && <View style={{ borderLeftWidth: 2, borderColor: colors.accent, paddingLeft: 12 }}><Txt numberOfLines={4} selectable style={{ fontSize: 16, lineHeight: 24, color: colors.muted }}>{workspace.jobs.find(job => job.attachmentId === entry.id && job.draftId === draft.id)?.result?.text}</Txt></View>}
+        <SourceText draft={draft} attachment={entry.item} job={workspace.jobs.find(job => job.attachmentId === entry.id && job.draftId === draft.id)} />
       </> : <View style={{ padding: 17, borderRadius: 14, borderTopLeftRadius: 3, backgroundColor: colors.paper, borderWidth: 1, borderColor: colors.line }}><Txt selectable style={{ fontSize: 18, lineHeight: 24 }}>{entry.item.text}</Txt></View>}
     </View>)}
     {!capturing && <View style={{ flexDirection: 'row', gap: 7, alignItems: 'center', paddingVertical: 12 }}><Icon name="check" size={13} color={colors.green} /><Txt style={{ fontSize: 16, color: colors.muted }}>{workspace.cloudEnabled ? 'Originals save here and upload automatically to company cloud.' : 'Originals saved locally. You can keep capturing while processing runs.'}</Txt></View>}

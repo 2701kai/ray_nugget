@@ -31,6 +31,11 @@ recording cannot be dismissed silently. The same recorder survives mobile/deskto
 layout changes and remains bound to its source visitor. Conversation recordings
 still require consent. Playback shows elapsed time, duration when available, and
 10-second back/forward controls; starting a recording pauses existing playback.
+**Read transcript** and **Read card text** open the full source directly from the
+conversation, with the visitor and capture time visible. Reading or copying text
+does not approve extracted changes or edit the draft. A saved transcript remains
+readable even if later extraction is paused. Field review stays separate.
+
 A quiet version hint appears at the bottom of the workspace and sign-in screen;
 Settings shows the same numeric version. It identifies the page actually open,
 including a cached offline page, so an older tab cannot report a newer release.
