@@ -9,5 +9,5 @@ export function useCaptureRecorder(listener: (status: CaptureStatus) => void) {
     const interval = setInterval(() => setDuration(recorder.durationMillis), 250);
     return () => { clearInterval(interval); recorder.dispose(); };
   }, [recorder]);
-  return { recorder, status: { durationMillis }, requestPermission: async () => ({ granted: true }), setMode: async (_recording: boolean) => undefined };
+  return { recorder, status: { durationMillis }, discard: () => recorder.discard(), requestPermission: async () => ({ granted: true }), setMode: async (_recording: boolean) => undefined };
 }

@@ -128,6 +128,28 @@ test('a running voice capture is not interrupted by activation and its original 
   } finally { await site.close(); }
 });
 
+test('an update waits for discard confirmation, then refreshes without saving the recording or logging out', async ({ page }) => {
+  const site = await releases();
+  try {
+    await page.goto(site.origin); await ready(page); await visitor(page);
+    await page.getByRole('button', { name: 'Conversation', exact: true }).click();
+    await page.getByRole('button', { name: 'Capture a voice note', exact: true }).click();
+    await expect(page.getByText(/^00:0[1-3]$/)).toBeVisible();
+    await page.getByRole('button', { name: 'Discard recording', exact: true }).click();
+    site.next(); await checkUpdate(page);
+    await expect(page.getByText(/New version ready/)).toBeAttached();
+    await page.waitForTimeout(6500);
+    await expect(page.getByRole('button', { name: 'Confirm discard recording', exact: true })).toBeEnabled();
+    await expect(page.getByText('Version 8.0.1', { exact: true })).toBeAttached();
+    await page.getByRole('button', { name: 'Confirm discard recording', exact: true }).click();
+    await expect(page.getByText('Version 8.0.2', { exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Synthetic Update Visitor', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Play recording', exact: true })).toHaveCount(0);
+    await page.getByRole('button', { name: 'Settings', exact: true }).click();
+    await expect(page.getByText('autofill-test@bevmaq.com', { exact: true })).toBeVisible();
+  } finally { await site.close(); }
+});
+
 test('failed update installation keeps the current app; retry updates even with an older nonresponding tab open', async ({ page, context }) => {
   const site = await releases();
   try {

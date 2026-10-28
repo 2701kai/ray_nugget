@@ -80,7 +80,7 @@ function WorkspaceScreen() {
     catch (e) { if (!(e instanceof Error && e.name === 'AbortError')) setError(e instanceof Error ? e.message : 'Could not open this draft.'); }
     finally { changing.current = false; setBusy(false); }
   }
-  function done() { setPanel(null); setLocked(false); setNotice('Saved on this device.'); }
+  function done(outcome?: 'discarded' | 'canceled') { setPanel(null); setLocked(false); setNotice(outcome === 'discarded' ? 'Recording discarded.' : outcome === 'canceled' ? 'Recording canceled.' : 'Saved on this device.'); }
   async function exportRecord() {
     if (!draft) return;
     try { await downloadJson(`pete-draft-${draft.id.slice(0, 8)}.json`, { ...exportDraft(draft), processing: workspace.jobs.filter(job => job.draftId === draft.id).map(({ leaseId, ...job }) => job) }); setNotice('Exported draft and source text. Original media stays on this device.'); }

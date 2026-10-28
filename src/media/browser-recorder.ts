@@ -10,6 +10,7 @@ export class BrowserRecorder implements CaptureRecorder {
   private resolveStop?: () => void;
   private generation = 0;
   private disposed = false;
+  private discarding = false;
   private startedAt = 0;
   private elapsed = 0;
   private failure?: string;
@@ -28,11 +29,11 @@ export class BrowserRecorder implements CaptureRecorder {
       this.stream = stream;
       const mimeType = ['audio/webm;codecs=opus', 'audio/mp4', 'audio/webm'].find(type => MediaRecorder.isTypeSupported(type));
       const recorder = new MediaRecorder(stream, { ...(mimeType ? { mimeType } : {}), audioBitsPerSecond: 128000 });
-      this.media = recorder; this.chunks = []; this.elapsed = 0; this.startedAt = 0; this.failure = undefined;
+      this.media = recorder; this.chunks = []; this.elapsed = 0; this.startedAt = 0; this.failure = undefined; this.discarding = false;
       if (this.uri) URL.revokeObjectURL(this.uri);
       this.uri = null;
       this.stopped = new Promise(resolve => { this.resolveStop = resolve; });
-      recorder.addEventListener('dataavailable', event => { if (event.data.size) this.chunks.push(event.data); });
+      recorder.addEventListener('dataavailable', event => { if (event.data.size && !this.discarding && !this.disposed) this.chunks.push(event.data); });
       recorder.addEventListener('error', () => {
         this.failure = 'The microphone was interrupted. Pete is keeping the audio captured so far.';
         if (recorder.state !== 'inactive') recorder.stop();
@@ -45,9 +46,9 @@ export class BrowserRecorder implements CaptureRecorder {
         this.chunks = [];
         stream!.getTracks().forEach(track => track.stop());
         this.stream = undefined;
-        if (blob.size && !this.disposed) this.uri = URL.createObjectURL(blob);
+        if (blob.size && !this.disposed && !this.discarding) this.uri = URL.createObjectURL(blob);
         this.resolveStop?.(); this.resolveStop = undefined;
-        if (!this.disposed) this.listener({ url: this.uri, isFinished: true, hasError: !!this.failure || !this.uri, error: this.failure || (!this.uri ? 'No audio was captured. Check your microphone and try again.' : undefined) });
+        if (!this.disposed && !this.discarding) this.listener({ url: this.uri, isFinished: true, hasError: !!this.failure || !this.uri, error: this.failure || (!this.uri ? 'No audio was captured. Check your microphone and try again.' : undefined) });
       }, { once: true });
       for (const track of stream.getTracks()) track.addEventListener('ended', () => {
         this.failure = 'The microphone disconnected. Pete is saving the audio captured so far.';
@@ -75,6 +76,19 @@ export class BrowserRecorder implements CaptureRecorder {
     if (!this.media || !this.stopped) throw new Error('No recording was started.');
     if (this.media.state !== 'inactive') this.media.stop();
     await this.stopped;
+  }
+  async discard() {
+    // Invalidate an outstanding permission request and suppress the automatic
+    // save callback before stop() can deliver its final data/stop events.
+    this.discarding = true; this.generation++;
+    try {
+      if (this.media && (this.media.state !== 'inactive' || this.startedAt)) await this.stop();
+      this.stream?.getTracks().forEach(track => track.stop());
+      this.stream = undefined; this.media = undefined; this.chunks = [];
+      this.stopped = undefined; this.resolveStop = undefined;
+      if (this.uri) URL.revokeObjectURL(this.uri);
+      this.uri = null; this.startedAt = 0; this.elapsed = 0;
+    } catch (error) { this.discarding = false; throw error; }
   }
   dispose() {
     this.disposed = true; this.generation++;

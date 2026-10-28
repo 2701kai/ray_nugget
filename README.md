@@ -293,7 +293,11 @@ of automatically submitting a duplicate. That case needs an operation check.
   screen-lock behavior still need real-device validation.
 - Browser recording collects final audio even when the microphone disconnects or
   the browser stops the recorder. Leaving the visible app attempts to save to the
-  original visitor. If saving fails, Close stays disabled: retry, download the
+  original visitor. **Discard** is available during recording with a confirmation;
+  it releases the microphone and removes only that unsaved recording. If the app
+  stops recording while confirmation is open, the temporary audio waits for your
+  keep/discard choice. Microphone preparation can also be canceled. Previously
+  saved originals stay intact. If saving fails, Close stays disabled: retry, download the
   original, or explicitly confirm discarding it. A navigation warning helps guard
   unsaved recordings where the browser supports it. Recovery before a successful
   save depends on the page staying alive; abrupt OS termination is not covered.
