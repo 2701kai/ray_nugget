@@ -2,6 +2,7 @@ import { requestTextKeys, requestLabels, sameRequirement } from '../domain/requi
 import type { Contact, Draft, RequestReview } from '../domain/draft';
 import type { ProcessingJob } from './jobs';
 import { requestCandidates } from './request';
+import { sourceText } from './source';
 
 export type ReviewChange = {
   key: `contact.${keyof Contact}` | 'request.intent' | `request.${typeof requestTextKeys[number]}` | 'request.capacity';
@@ -20,7 +21,7 @@ const contactLabels = { name: 'Name', company: 'Company', email: 'Email', phone:
 function newerDecision(draft: Draft, job: ProcessingJob, key: string) {
   const origin = draft.provenance[key];
   if (!origin || origin.jobId === job.id) return false;
-  const capturedAt = draft.attachments.find(a => a.id === job.attachmentId)?.capturedAt;
+  const capturedAt = job.result?.sourceEdits?.find(edit => edit.id === job.result?.activeEditId)?.createdAt ?? draft.attachments.find(a => a.id === job.attachmentId)?.capturedAt;
   if (!capturedAt) return false;
   const decisionAt = origin.source === 'manual' ? origin.at : origin.reviewedAt;
   const sourceAt = draft.attachments.find(a => a.id === origin.attachmentId)?.capturedAt;
@@ -38,7 +39,7 @@ export function reviewChanges(draft: Draft, job: ProcessingJob): ReviewChange[] 
     changes.push({ key, label: contactLabels[field], saved: draft.contact[field] || (draft.provenance[key] ? 'Left blank intentionally' : 'Not added yet'), proposed: value, evidence: result.evidence?.[key], fields: { [field]: value }, superseded: newerDecision(draft, job, key) });
   }
   if (job.kind !== 'voice') return changes;
-  const legacy = !result.request && !result.evidence ? requestCandidates(result.text) : undefined;
+  const legacy = !result.request && !result.evidence ? requestCandidates(sourceText(result)) : undefined;
   const request = result.request || { product: legacy?.product?.value, packaging: legacy?.packaging?.value, capacity: legacy?.capacity?.value };
   for (const field of ['intent', ...requestTextKeys] as const) {
     const value = request[field];

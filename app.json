@@ -2,7 +2,7 @@
   "expo": {
     "name": "Pete",
     "slug": "pete",
-    "version": "0.8.2",
+    "version": "0.9.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "scheme": "pete",

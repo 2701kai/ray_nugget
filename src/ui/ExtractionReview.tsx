@@ -10,6 +10,7 @@ import type { Workspace } from '../useWorkspace';
 import { Button, Choice, ErrorNotice, Field, Sheet, Txt } from './primitives';
 import { Icon } from './Icon';
 import { colors } from './theme';
+import { sourceText, sourceAttribution } from '../processing/source';
 
 const labels: Record<keyof Contact, string> = { name: 'Name', company: 'Company', email: 'Email', phone: 'Mobile number' };
 
@@ -90,11 +91,11 @@ export function ExtractionReview({ job, draft, workspace, close }: { job: Proces
     <Txt style={{ color: colors.muted, fontSize: 16 }}>Clear details are already added. Check alternatives here if something differs. Your corrections are kept unless you choose a replacement.</Txt>
     <View style={{ backgroundColor: colors.pale, padding: 16, borderRadius: 12, gap: 8 }}>
       <Txt weight="semibold" style={{ fontSize: 16 }}>{job.kind === 'card' ? 'Text read from the card' : 'Transcript'}</Txt>
-      <ScrollView style={{ maxHeight: 220 }} nestedScrollEnabled><Txt selectable style={{ fontSize: 16, lineHeight: 24 }}>{job.result?.text || 'No readable text found. Take a clearer photo or add the details in a voice note.'}</Txt></ScrollView>
+      <ScrollView style={{ maxHeight: 220 }} nestedScrollEnabled><Txt selectable style={{ fontSize: 16, lineHeight: 24 }}>{sourceText(job.result) || 'No readable text found. Take a clearer photo or add the details in a voice note.'}</Txt></ScrollView>
       {(job.result?.text.length ?? 0) > 600 && <Txt style={{ fontSize: 16, color: colors.muted }}>Scroll the source text to read more.</Txt>}
-      <Txt style={{ color: colors.muted, fontSize: 16 }}>{job.result?.engine}</Txt>
+      <Txt style={{ color: colors.muted, fontSize: 14 }}>{sourceAttribution(job.result)}</Txt>
     </View>
-    {!!job.result?.text && <Button kind="quiet" label={copied ? 'Source text copied' : 'Copy source text'} icon="copy" onPress={async () => { try { await Clipboard.setStringAsync(job.result!.text); setCopied(true); } catch { setError('Could not copy the text.'); } }} />}
+    {!!job.result?.text && <Button kind="quiet" label={copied ? 'Source text copied' : 'Copy source text'} icon="copy" onPress={async () => { try { await Clipboard.setStringAsync(sourceText(job.result)); setCopied(true); } catch { setError('Could not copy the text.'); } }} />}
     {job.reviewedAt !== undefined ? <Txt style={{ color: colors.green }}>Reviewed. The source text remains available here.</Txt> : <>
       <Button label={editing ? 'Hide typing fields' : 'Edit details manually'} kind="quiet" onPress={() => setEditing(!editing)} />
       {!!job.result?.questions?.length && <View style={{ gap: 8 }}><Txt weight="semibold">A little more detail</Txt>{job.result.questions.map((question, i) => <Txt key={i}>{question}</Txt>)}<Txt style={{ color: colors.muted }}>Close this view and add a voice note. Typing is optional.</Txt></View>}
@@ -156,14 +157,14 @@ export function ProcessingStatus({ draft, attachmentId, workspace }: { draft: Dr
   const filled = Object.values(draft.provenance).some(origin => origin.jobId === job.id);
   const label = job.state === 'complete' ? job.reviewedAt !== undefined ? 'Reviewed · source text kept' : conflicts || job.result?.questions?.length ? 'A detail needs checking · your existing details are kept' : superseded ? 'Earlier details · newer values kept' : filled ? 'Details added automatically' : 'Source saved · add more details by voice'
     : !available ? job.kind === 'voice' ? 'Transcription connection needed' : 'Card reading available in the browser preview'
-    : job.state === 'running' ? job.kind === 'voice' ? 'Listening and filling details · original is safe' : 'Reading the card and filling details…'
+    : job.state === 'running' ? job.kind === 'voice' ? 'Processing recording…' : 'Reading the card and filling details…'
     : job.state === 'failed' ? 'Processing paused · retry when ready'
-    : job.error ? 'Will retry shortly · original is safe' : 'Waiting to read · original is safe';
+    : job.error ? 'Will retry shortly · original is safe' : 'Saved · waiting to process';
   return <View style={{ gap: 6 }}>
     <Txt accessibilityLiveRegion="polite" style={{ fontSize: 16, lineHeight: 24, color: job.state === 'failed' ? colors.danger : colors.green }}>{label}</Txt>
     {!!job.error && <Txt style={{ fontSize: 16, color: colors.muted }}>{job.error}</Txt>}
     <ErrorNotice message={error} />
-    {job.state === 'complete' && <Button label={job.reviewedAt !== undefined ? 'View source text' : conflicts ? 'Check suggested changes' : 'View captured details'} kind={conflicts ? 'secondary' : 'quiet'} style={{ alignSelf: 'flex-start' }} onPress={() => setReviewing(true)} />}
+    {job.state === 'complete' && (conflicts || !!job.result?.questions?.length || job.reviewedAt !== undefined) && <Button label={job.reviewedAt !== undefined ? 'View source text' : conflicts ? 'Check suggested changes' : 'View captured details'} kind={conflicts ? 'secondary' : 'quiet'} style={{ alignSelf: 'flex-start' }} onPress={() => setReviewing(true)} />}
     {job.state === 'failed' && available && <Button label="Retry processing" kind="secondary" onPress={async () => { try { await workspace.retryJob(job.id); } catch { setError('Could not queue the retry.'); } }} />}
     {reviewing && <ExtractionReview key={job.id} job={job} draft={draft} workspace={workspace} close={() => setReviewing(false)} />}
   </View>;

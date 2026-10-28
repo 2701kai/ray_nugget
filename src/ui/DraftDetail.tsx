@@ -30,12 +30,12 @@ export function MediaItem({ draft, item, workspace }: { draft: Draft; item: Atta
     {item.kind === 'card' && !!uri && <Image source={{ uri }} accessibilityLabel={item.name} resizeMode="contain" style={{ width: '100%', height: 110, backgroundColor: colors.background, borderRadius: 8 }} />}
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}><Icon name={item.kind === 'card' ? 'card' : 'mic'} size={16} color={colors.green} /><Txt weight="semibold" style={{ fontSize: 16, flex: 1 }} numberOfLines={1}>{item.name}</Txt>{item.kind === 'card' && <Txt style={{ fontSize: 16, color: colors.muted }}>{Math.max(1, Math.round(item.bytes / 1024))} KB</Txt>}</View>
     {item.kind === 'voice' && !!uri && <VoicePlayer uri={uri} />}
-    {(error || !workspace.cloudEnabled) && <Txt style={{ fontSize: 16, color: error ? colors.danger : colors.muted, lineHeight: 24 }}>{error || 'Original saved on this device'}</Txt>}
+    {!!error && <Txt style={{ fontSize: 16, color: error ? colors.danger : colors.muted, lineHeight: 24 }}>{error}</Txt>}
     <ProcessingStatus draft={draft} attachmentId={item.id} workspace={workspace} />
   </View>;
 }
 
-export function DraftDetail({ draft, workspace, edit, intro, backup, exportRecord, showMedia = true }: { draft?: Draft; workspace: Workspace; edit: (kind: 'contact' | 'request') => void; intro: () => void; backup: () => void; exportRecord: () => void; showMedia?: boolean }) {
+export function DraftDetail({ draft, workspace, edit, showMedia = true }: { draft?: Draft; workspace: Workspace; edit: (kind: 'contact' | 'request') => void; showMedia?: boolean }) {
   const [shareError, setShareError] = useState('');
   if (!draft) return <View style={{ flex: 1, minHeight: 450, gap: 20, padding: 26, justifyContent: 'center', alignItems: 'center' }}>
     <View style={{ width: 86, height: 86, backgroundColor: colors.pale, borderRadius: 26, alignItems: 'center', justifyContent: 'center', transform: [{ rotate: '-6deg' }] }}><Icon name="folder" size={36} color={colors.green} /></View>
@@ -54,9 +54,9 @@ export function DraftDetail({ draft, workspace, edit, intro, backup, exportRecor
     <View style={{ backgroundColor: colors.pale, borderRadius: 8, padding: 10 }}><Txt style={{ fontSize: 16, lineHeight: 24, color: colors.green }}>{gaps.length ? `${gaps.length} key details still needed` : 'Filling requirements captured'}</Txt></View>
     {!!draft.note && <Txt style={{ fontSize: 16, color: colors.muted }}>{draft.note}</Txt>}</View>
     {showMedia && draft.attachments.length > 0 && <View style={{ gap: 10 }}><Eyebrow>SOURCES · {draft.attachments.length}</Eyebrow>{draft.attachments.map(item => <MediaItem key={item.id} draft={draft} item={item} workspace={workspace} />)}</View>}
-    <LeadHandoff key={draft.id} draft={draft} workspace={workspace} />
+    <LeadHandoff key={draft.id} draft={draft} workspace={workspace} compact />
     {!!shareError && <Txt style={{ color: colors.danger }}>{shareError}</Txt>}
     {!workspace.teamView.links[draft.id] && workspace.teamView.teams.map(team => <Button key={team.id} label={`Share with the ${team.name} team`} kind="secondary" icon="folder" onPress={() => { setShareError(''); void workspace.shareTeam(draft.id, team.id).catch(error => setShareError(error.message)); }} />)}
-    <View style={{ gap: 8, borderTopWidth: 1, borderColor: colors.line, paddingTop: 18 }}><Button label="WhatsApp introduction" icon="phone" onPress={intro} /><Txt style={{ textAlign: 'center', fontSize: 16, color: colors.muted }}>Preview only. No messages are sent.</Txt><Button label="Download backup file" icon="download" kind="secondary" onPress={backup} /><Button label="Export draft metadata" kind="quiet" onPress={exportRecord} /></View>
+
   </View>;
 }

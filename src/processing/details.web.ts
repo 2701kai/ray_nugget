@@ -11,7 +11,7 @@ export async function extractDetails(text: string, kind: 'voice' | 'card', signa
   const deadline = Date.now() + 95_000;
   do {
     const token = await accessToken();
-    const response = await fetch(`${gateway}/extractions/${id}`, { method: 'POST', signal, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ text, kind, context }) });
+    const response = await fetch(`${gateway}/extractions/${id}`, { method: 'POST', signal, headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify({ text, kind, context }) });
     const data = await response.json() as { state?: string; result?: CapturedDetails; engine?: string; error?: string };
     if (!response.ok) throw new Error(data.error || 'Automatic filling is temporarily unavailable. The source is saved.');
     if (data.state === 'complete' && data.result && data.engine) return { ...data.result, engine: data.engine };

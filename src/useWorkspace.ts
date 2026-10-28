@@ -23,6 +23,8 @@ import { useUpdateGuard } from './pwa/updateGuard';
 
 export function useWorkspace() {
   const editingTeam = useRef(false);
+  const editingHolds = useRef(new Set<string>());
+  const [sourceEditing, setSourceEditing] = useState(false);
   const [teamView, setTeamView] = useState<TeamView>(emptyTeamView);
   const team = useRef<ReturnType<typeof startTeamSync> | null>(null);
   const repo = useRef<DraftRepository | null>(null);
@@ -114,6 +116,10 @@ export function useWorkspace() {
   async function getMedia(draftId: string, attachmentId: string) { return repository().media(draftId, attachmentId); }
   async function activateDraft(id?: string) { await repository().activateDraft(id); setActiveDraftId(id); }
   async function retryJob(id: string) { await repository().retryJob(id); setJobs(await repository().jobs()); runner.current?.wake(); }
+  async function correctTranscript(id: string, text: string, revision: number) {
+    const draft = await repository().correctTranscript(id, text, Crypto.randomUUID(), revision);
+    merge(draft); setJobs(await repository().jobs()); runner.current?.wake(); cloud.current?.wake(); team.current?.wake();
+  }
   async function reviewJob(id: string, fields: Partial<Contact>, revision: number, options: ReviewOptions = {}) {
     const draft = await repository().reviewJob(id, fields, revision, options); merge(draft); setJobs(await repository().jobs()); cloud.current?.wake(); team.current?.wake();
   }
@@ -232,6 +238,6 @@ export function useWorkspace() {
     return () => { clearInterval(timer); if (typeof window !== 'undefined') window.removeEventListener('online', wake); if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', wake); };
   }, []);
 
-  return { rayAvailable, rayStates, rayEnabled, pauseRay, stopRay, captureContext, decideRayQuestion, askRay, assignLeadOwner, holdTeamUpdates: (held: boolean) => { editingTeam.current = held; if (!held) { rayObserved.current.clear(); team.current?.wake(); } }, cancelTeamOpen: () => team.current?.cancelOpen(), teamView, scope, selectScope, openTeam, shareTeam, resolveTeam: (id: string, choices: Record<string, 'local' | 'team'>) => team.current?.resolve(id, choices), drafts, activeDraftId, activateDraft, jobs, supportedKinds, preferences, loading, error, processingError, cloudEnabled, cloudStates, cloudCopies, restoreCloud, retryCloud: () => cloud.current?.wake(), retry: () => setGeneration(g => g + 1), create, update, attach, savePreferences, getMedia, retryJob, reviewJob, backup, restore };
+  return { sourceEditing, correctTranscript, rayAvailable, rayStates, rayEnabled, pauseRay, stopRay, captureContext, decideRayQuestion, askRay, assignLeadOwner, holdTeamUpdates: (held: boolean, key = 'panel') => { if (held) editingHolds.current.add(key); else editingHolds.current.delete(key); editingTeam.current = editingHolds.current.size > 0; setSourceEditing([...editingHolds.current].some(k => k.startsWith('source:'))); if (!editingTeam.current) { rayObserved.current.clear(); team.current?.wake(); } }, cancelTeamOpen: () => team.current?.cancelOpen(), teamView, scope, selectScope, openTeam, shareTeam, resolveTeam: (id: string, choices: Record<string, 'local' | 'team'>) => team.current?.resolve(id, choices), drafts, activeDraftId, activateDraft, jobs, supportedKinds, preferences, loading, error, processingError, cloudEnabled, cloudStates, cloudCopies, restoreCloud, retryCloud: () => cloud.current?.wake(), retry: () => setGeneration(g => g + 1), create, update, attach, savePreferences, getMedia, retryJob, reviewJob, backup, restore };
 }
 export type Workspace = ReturnType<typeof useWorkspace>;

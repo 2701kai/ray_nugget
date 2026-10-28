@@ -33,6 +33,7 @@ export function RayAssistant({ draft, workspace, speak, recorderMode }: { draft:
   const state = workspace.rayStates[draft.id];
   useEffect(() => {
     setElapsed(0);
+    if (state?.busy) setClosed(false);
     if (!state?.busy) return;
     const start = Date.now();
     const timer = setInterval(() => setElapsed(Math.floor((Date.now() - start) / 1000)), 1000);
@@ -57,7 +58,6 @@ export function RayAssistant({ draft, workspace, speak, recorderMode }: { draft:
   const seller = draft.request.intent === 'sell';
   const hasNeed = !!(draft.request.product || draft.request.packaging || draft.request.throughput || draft.note || draft.entries?.length || draft.attachments.some(a => a.kind === 'voice'));
   const selected = history.flatMap(a => a.machines.filter(m => a.selectedSkus.includes(m.sku)).map(m => ({ ...m, consultation: a.id })));
-  const run = () => { setClosed(false); void workspace.askRay(draft.id); };
   async function select(sku: string, advice = latest) {
     if (!advice || saving) return;
     setSaving(true); setError('');
@@ -78,12 +78,12 @@ export function RayAssistant({ draft, workspace, speak, recorderMode }: { draft:
     <Txt weight="bold" style={{ fontSize: 16, lineHeight: 23 }}>{m.title}</Txt><Txt style={{ fontSize: 16, color: colors.muted }}>{m.manufacturer} · {m.sku}</Txt>
     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}><Button label="View listing" kind="quiet" onPress={() => open(m.url)} /><Button label={advice.selectedSkus.includes(m.sku) ? 'Saved for visitor ✓' : 'Save for visitor'} kind="secondary" disabled={saving} onPress={() => { void select(m.sku, advice); }} /></View>
   </View>);
-  if (closed) return <View testID="ray-closed" style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}><View style={{ flex: 1 }}><Txt style={{ fontSize: 16 }}>Ray · Equipment help</Txt>{!!activity && <Txt style={{ fontSize: 14, color: colors.muted }}>{activity}</Txt>}{(enabled || latest) && <Txt style={{ fontSize: 14, color: colors.muted }}>{automatic}</Txt>}</View><Button label="Show Ray" kind="quiet" onPress={() => setClosed(false)} /></View>;
-  return <View testID="ray-assistant" style={{ backgroundColor: colors.paper, borderWidth: 1, borderColor: colors.line, borderRadius: 12, padding: 14, gap: 10 }}>
+  if (closed) return <View testID="ray-closed" style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}><View style={{ flex: 1 }}><Txt style={{ fontSize: 16 }}>Ray’s advice</Txt>{!!activity && <Txt style={{ fontSize: 14, color: colors.muted }}>{activity}</Txt>}{(enabled || latest) && <Txt style={{ fontSize: 14, color: colors.muted }}>{automatic}</Txt>}</View><Button label="Show Ray" kind="quiet" onPress={() => setClosed(false)} /></View>;
+  return <View testID="ray-assistant" style={{ backgroundColor: colors.pale, borderLeftWidth: 3, borderColor: colors.green, borderRadius: 8, padding: 18, gap: 10 }}>
     <View style={{ flexDirection: width < 360 ? 'column' : 'row', alignItems: width < 360 ? 'flex-start' : 'center', justifyContent: 'space-between', gap: 8 }}>
-      <View style={{ flex: width < 360 ? undefined : 1 }}><Txt weight="bold" style={{ fontSize: 18 }}>Ray · Equipment help</Txt><Txt style={{ fontSize: 16, lineHeight: 22, color: colors.muted }}>{seller ? 'Seller lead saved for the team.' : 'Use what you’ve captured.'}</Txt></View>
+      <View style={{ flex: width < 360 ? undefined : 1 }}><Txt weight="bold" style={{ fontSize: 18 }}>Ray’s advice</Txt>{seller && <Txt style={{ fontSize: 16, lineHeight: 22, color: colors.muted }}>Seller lead saved for the team.</Txt>}</View>
       {!seller && workspace.rayAvailable && <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-        <Button label={state?.busy ? 'Asking…' : 'Ask Ray'} disabled={state?.busy || !hasNeed} kind="secondary" onPress={run} style={{ paddingHorizontal: 10 }} />
+
         <Button label="" accessibilityLabel="Hide Ray" icon="close" kind="quiet" onPress={() => setClosed(true)} style={{ width: 44, paddingHorizontal: 0 }} />
       </View>}
     </View>
@@ -100,8 +100,8 @@ export function RayAssistant({ draft, workspace, speak, recorderMode }: { draft:
     <ErrorNotice message={state?.error || error} />
     {latest && <>
       <Txt testID="ray-advice-text" selectable style={{ fontSize: 16, lineHeight: 24 }}>{latest.text}</Txt>
-      {!!question && <View style={{ backgroundColor: colors.pale, padding: 12, borderRadius: 8, gap: 8 }}>{latest.text.trim() !== question.trim() && <><Txt weight="bold" style={{ fontSize: 16 }}>Ask next</Txt><Txt style={{ fontSize: 18, lineHeight: 26 }}>{question}</Txt></>}<Button label="Not known yet" kind="quiet" disabled={saving} onPress={() => { void decide(question, true); }} style={{ alignSelf: 'flex-start', paddingHorizontal: 0 }} />{questions.length > 1 && <Button label={moreQuestions ? 'Hide other questions' : `${questions.length - 1} more question${questions.length > 2 ? 's' : ''}`} kind="quiet" onPress={() => setMoreQuestions(!moreQuestions)} />}{moreQuestions && questions.filter(q => q !== question).map(q => <Button key={q} label={q} kind="quiet" onPress={() => { setChosenQuestion({ adviceId: latest.id, question: q }); setMoreQuestions(false); }} />)}</View>}
-      {!seller && <Button label="Answer by voice" icon="mic" kind="secondary" onPress={() => speak(question ? [question] : [])} style={{ alignSelf: 'flex-start' }} />}
+      {!!question && <View style={{ backgroundColor: colors.pale, padding: 12, borderRadius: 8, gap: 8 }}>{!latest.text.includes(question) && <><Txt weight="bold" style={{ fontSize: 16 }}>Next question</Txt><Txt style={{ fontSize: 18, lineHeight: 26 }}>{question}</Txt></>}<Button label="Not known yet" kind="quiet" disabled={saving} onPress={() => { void decide(question, true); }} style={{ alignSelf: 'flex-start', paddingHorizontal: 0 }} />{questions.length > 1 && <Button label={moreQuestions ? 'Hide other questions' : `${questions.length - 1} more question${questions.length > 2 ? 's' : ''}`} kind="quiet" onPress={() => setMoreQuestions(!moreQuestions)} />}{moreQuestions && questions.filter(q => q !== question).map(q => <Button key={q} label={q} kind="quiet" onPress={() => { setChosenQuestion({ adviceId: latest.id, question: q }); setMoreQuestions(false); }} />)}</View>}
+      {!seller && <Button label="Answer by voice" disabled={workspace.sourceEditing} icon="mic" kind="secondary" onPress={() => speak(question ? [question] : [])} style={{ alignSelf: 'flex-start' }} />}
       {!!latest.machines.length && <><Txt weight="semibold" style={{ fontSize: 16 }}>Listings referenced in this advice</Txt><Txt style={{ fontSize: 14, lineHeight: 20, color: colors.muted }}>Ray’s assessment above explains suitability and may rule out a listing.</Txt>{machineCards(latest)}</>}
       {!!latest.omitted && <Txt style={{ fontSize: 16, color: colors.muted }}>Ray used selected excerpts; {latest.omitted} longer or additional excerpts stayed in Pete. Add a short summary if something important is missing.</Txt>}
       {!!latest.pending && <Txt style={{ fontSize: 16, color: colors.muted }}>{latest.pending} recording(s) were still awaiting text when you asked.</Txt>}

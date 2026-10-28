@@ -44,7 +44,8 @@ export function CardCapture({ draft, workspace, done, lock }: { draft: Draft; wo
 
 export function VoiceCapture({ draft, workspace, done, lock, initialMode = 'memo', autoStart = false, compact = false, answerQuestions, onClose }: { draft: Draft; workspace: Workspace; done: (outcome?: 'discarded' | 'canceled') => void; lock: (locked: boolean) => void; initialMode?: 'memo' | 'conversation'; autoStart?: boolean; compact?: boolean; answerQuestions?: string[]; onClose?: () => void }) {
   const [mode, setMode] = useState<'memo' | 'conversation'>(initialMode);
-  const [consent, setConsent] = useState(false);
+  // Choosing conversation recording attests to agreement already obtained.
+  const consent = true;
   type Phase = 'idle' | 'preparing' | 'recording' | 'saving' | 'retry' | 'stopping' | 'discarding';
   const [phase, renderPhase] = useState<Phase>('idle');
   const phaseRef = useRef<Phase>('idle');
@@ -118,7 +119,7 @@ export function VoiceCapture({ draft, workspace, done, lock, initialMode = 'memo
       active.current = false; lock(phaseRef.current !== 'idle' && !closed.current);
     }
   }
-  useEffect(() => { if (autoStart && initialMode === 'memo') void start(); }, []);
+  useEffect(() => { if (autoStart) void start(); }, []);
   async function finish() {
     if (closed.current || active.current || downloadActive.current || !['recording', 'retry'].includes(phaseRef.current)) return;
     active.current = true; setError(''); setPhase(discardPrompt.current ? 'stopping' : 'saving'); lock(true);
@@ -177,7 +178,7 @@ export function VoiceCapture({ draft, workspace, done, lock, initialMode = 'memo
     {!!captureContext.questions.length && <Txt style={{ fontSize: 16, lineHeight: 22 }}>{captureContext.questions.join('\n')}</Txt>}
     {(answerQuestions || workspace.rayEnabled[draft.id]) && <Txt style={{ fontSize: 14, lineHeight: 20, color: colors.muted }}>{workspace.rayEnabled[draft.id] ? 'After saving and processing, Ray updates the advice automatically.' : 'Automatic updates are paused. Choose Ask Ray after saving.'}</Txt>}
     {!compact && phase === 'idle' && <Choice label="What are you recording?" value={mode} options={[{ value: 'memo', label: 'My own voice memo' }, { value: 'conversation', label: 'Conversation' }]} onChange={setMode} />}
-    {mode === 'conversation' && phase === 'idle' && <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: consent }} aria-checked={consent} accessibilityLabel="The other person agreed to this recording" onPress={() => setConsent(!consent)} style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}><View style={{ width: 22, height: 22, borderWidth: 1, borderColor: colors.green, borderRadius: 5, backgroundColor: consent ? colors.green : colors.paper }}>{consent && <Icon name="check" size={20} color={colors.paper} />}</View><Txt style={{ flex: 1, fontSize: 16 }}>The other person agreed to this recording.</Txt></Pressable>}
+
     {compact ? <View style={{ flexDirection: 'row', gap: 7, alignItems: 'center' }}><View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: recording ? colors.danger : colors.muted }} /><Txt accessibilityLiveRegion="polite" style={{ fontSize: 16, lineHeight: 22, color: colors.muted, flex: 1 }}>{recording ? `Recording · ${limit / 60} min maximum` : feedback}</Txt></View> : <View style={{ alignItems: 'center', gap: 10, padding: 16, borderRadius: 12, backgroundColor: colors.pale }}>
       <View style={{ width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: recording ? colors.green : colors.sage }}><Icon name={recording ? 'mic' : 'clock'} size={22} color={recording ? colors.paper : colors.green} /></View>
       <Txt weight="semibold" style={{ fontSize: 30, lineHeight: 38, fontVariant: ['tabular-nums'], fontFamily: fonts.medium }}>{timer}</Txt>

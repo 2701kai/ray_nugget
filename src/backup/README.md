@@ -46,3 +46,17 @@ it never activates Ray assistance or starts a new consultation. Pete 0.8.0+ is
 required to edit the enriched records. Hosted pointers reject updates from older
 clients that strip the conversation marker. No originals or decisions are dropped
 to make an older client accept a newer record.
+
+The workflow preview reads v1 and v2. Visitors with corrected transcripts export
+`PETE_BACKUP_V2\n` / `pete-backup/v2`, so older apps reject the archive instead of
+silently using the misheard original. Existing v1 files need no migration; they
+open normally and become v2 only when a transcript is corrected. The envelope,
+hashing and media layout stay the same. `result.text` remains the original;
+`sourceEdits` retains corrections and `activeEditId` selects the current wording.
+`sourceEngine` identifies transcription separately from detail extraction.
+V2 also carries unfinished correction results with `processingComplete: false`;
+these restore paused and never trigger processing by import alone.
+
+Hosted rollout requires the new reader and server protection first: pointers
+retain every correction ID and reject clients that drop one. The workflow
+preview is local-only and has not been published to the hosted pilot.

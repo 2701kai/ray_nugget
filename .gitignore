@@ -25,7 +25,7 @@ skills-lock.json
 !.env.*.example
 
 # Dependencies, generated output, and temporary files
-node_modules/
+node_modules
 .venv/
 __pycache__/
 *.py[cod]
@@ -44,4 +44,5 @@ Thumbs.db
 *.tsbuildinfo
 /public/ocr/
 /dist-hosted/
+/dist-preview/
 .firebase/

@@ -11,12 +11,12 @@ export interface SpeechCloud {
 export class CloudError extends Error {
   constructor(message: string, public readonly definitive: boolean) { super(message); }
 }
-export function speechCloud(config: SpeechConfig): SpeechCloud {
+export function speechCloud(config: SpeechConfig, suppliedClient?: () => ReturnType<GoogleAuth['getClient']>): SpeechCloud {
   const auth = new GoogleAuth({ scopes: ['https://www.googleapis.com/auth/cloud-platform'], projectId: config.project });
   const endpoint = `https://${config.location}-speech.googleapis.com/v2`;
   async function request(url: string, init: RequestInit = {}) {
     let headers: Headers;
-    try { const client = await auth.getClient(); headers = new Headers(await client.getRequestHeaders(url)); }
+    try { const client = await (suppliedClient ? suppliedClient() : auth.getClient()); headers = new Headers(await client.getRequestHeaders(url)); }
     catch { throw new CloudError('Google credentials need refreshing: run gcloud auth application-default login.', true); }
     headers.set('x-goog-user-project', config.project);
     new Headers(init.headers).forEach((value, key) => headers.set(key, value));

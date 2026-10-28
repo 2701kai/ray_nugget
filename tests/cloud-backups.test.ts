@@ -103,3 +103,16 @@ test('an older client cannot strip conversation attributes from an accepted clou
   await expect(f.service.save('alice', copyId, encodeManifest({ draft: old, jobs: [newJob(old.id, f.attachment)] }), saved.fingerprint)).rejects.toMatchObject({ status: 409 });
   expect((await f.service.get('alice', copyId))?.fingerprint).toBe(saved.fingerprint);
 });
+
+test('an older client cannot discard a saved transcript correction', async () => {
+  const f = fixture(); await f.init(); f.upload(); await f.service.complete('alice', f.attachment.sha256);
+  const job = { ...newJob(f.draft.id, f.attachment), state: 'complete' as const, result: {
+    text: 'Breakfast mm', engine: 'Synthetic source', fields: {}, activeEditId: 'correction-1',
+    sourceEdits: [{ id: 'correction-1', text: 'Fruit pieces, maximum 1 mm.', createdAt: date }],
+  } };
+  const saved = await f.service.save('alice', copyId, encodeManifest({ draft: f.draft, jobs: [job] }), null);
+  expect(saved.sourceEditIds).toEqual(['correction-1']);
+  const old = { ...f.draft, revision: f.draft.revision + 1 };
+  await expect(f.service.save('alice', copyId, encodeManifest({ draft: old, jobs: [newJob(old.id, f.attachment)] }), saved.fingerprint)).rejects.toMatchObject({ status: 409 });
+  expect((await f.service.get('alice', copyId))?.fingerprint).toBe(saved.fingerprint);
+});

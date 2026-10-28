@@ -1,12 +1,14 @@
 import { requestFields, detailKeys, type CapturedDetails } from '../domain/details';
 import { checkRevision, reduceDraft, type Attachment, type Contact, type Draft, type RequestReview } from '../domain/draft';
+import { sourceText, validateSourceEdits, type SourceEdit } from './source';
 
 export const LEASE_MS = 30_000;
 export const MAX_ATTEMPTS = 3;
 export const NEVER = Number.MAX_SAFE_INTEGER;
-export type Extraction = CapturedDetails & { text: string; engine: string };
+export type Extraction = CapturedDetails & { text: string; engine: string; sourceEngine?: string; sourceEdits?: SourceEdit[]; activeEditId?: string };
 export function validateExtraction(result: Extraction) {
   if (!result || typeof result.text !== 'string' || result.text.length > 50_000 || typeof result.engine !== 'string' || !result.engine || result.engine.length > 100 || !result.fields || typeof result.fields !== 'object' || Array.isArray(result.fields)) throw new Error('Invalid extraction result.');
+  validateSourceEdits(result);
   for (const [key, value] of Object.entries(result.fields)) if (!['name', 'company', 'phone', 'email'].includes(key) || typeof value !== 'string' || value.length > 2000) throw new Error('Invalid extracted field.');
   if (result.request !== undefined) requestFields(result.request);
   if (result.questions !== undefined && (!Array.isArray(result.questions) || result.questions.length > 6 || result.questions.some(q => typeof q !== 'string' || q.length > 300))) throw new Error('Invalid clarification.');
@@ -37,6 +39,29 @@ export function processingRepository(driver: JobDriver) {
   const owns = (job: ProcessingJob | undefined, leaseId: string, now: number): job is ProcessingJob => !!job && job.state === 'running' && job.leaseId === leaseId && job.readyAt > now;
   return {
     jobs: () => driver.list(),
+    correctTranscript(id: string, text: string, correctionId: string, revision: number, now = Date.now()) {
+      return driver.atomic(async tx => {
+        const job = await tx.job(id);
+        if (!job?.result || job.kind !== 'voice') throw new Error('There is no saved transcript to correct.');
+        const draft = await tx.draft(job.draftId); checkRevision(draft, revision);
+        if (job.state === 'running' && job.readyAt > now) throw new Error('Pete is still reading this capture. Try again when processing finishes.');
+        const original = job.result;
+        if (original.sourceEdits?.some(e => e.id === correctionId) || sourceText(original) === text.trim()) return draft;
+        const result: Extraction = {
+          text: original.text, engine: original.engine, sourceEngine: original.sourceEngine,
+          sourceEdits: [...(original.sourceEdits ?? []), { id: correctionId, text: text.trim(), createdAt: new Date(now).toISOString() }],
+          activeEditId: correctionId, fields: {},
+        };
+        validateExtraction(result);
+        // Corrected wording is saved before interpretation. Reuse the original
+        // transcript checkpoint: never transcribe the same audio to fix a word.
+        const next = { ...draft, revision: draft.revision + 1, updatedAt: new Date(now).toISOString(),
+          appliedJobs: draft.appliedJobs.filter(j => j !== id), suggestions: draft.suggestions.filter(s => s.jobId !== id) };
+        await tx.putDraft(next);
+        await tx.putJob({ ...job, result, state: 'queued', attempts: 0, readyAt: now, leaseId: undefined, reviewedAt: undefined, error: undefined, updatedAt: now });
+        return next;
+      });
+    },
     claimJob(kinds: Attachment['kind'][], leaseId: string, now = Date.now()) {
       return driver.atomic(async tx => {
         for (;;) {
@@ -105,7 +130,7 @@ export function processingRepository(driver: JobDriver) {
         if (job.reviewedAt !== undefined && draft) return draft;
         checkRevision(draft, revision);
         if (options.request && job.kind !== 'voice') throw new Error('Request review needs a voice transcript.');
-        const next = reduceDraft(draft, { type: 'reviewExtraction', jobId: job.id, attachmentId: job.attachmentId, fields, request: options.request, transcript: options.appendTranscript && job.kind === 'voice' ? job.result.text : undefined }, new Date(now).toISOString());
+        const next = reduceDraft(draft, { type: 'reviewExtraction', jobId: job.id, attachmentId: job.attachmentId, fields, request: options.request, transcript: options.appendTranscript && job.kind === 'voice' ? sourceText(job.result) : undefined }, new Date(now).toISOString());
         await tx.putDraft(next);
         await tx.putJob({ ...job, reviewedAt: now, updatedAt: now });
         return next;

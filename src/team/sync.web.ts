@@ -83,7 +83,7 @@ export function startTeamSync(repo: DraftRepository, changed: (view: TeamView) =
     // An older client may have acknowledged a fingerprint while stripping fields
     // it did not understand. Reconcile retained cloud history even at the same
     // fingerprint; otherwise the server's data-loss guard rejects every retry.
-    const missingCloudState = remote?.rayIds?.some(id => !local.draft.ray?.some(a => a.id === id)) || remote?.conversationVersion && !local.draft.conversationVersion;
+    const missingCloudState = remote?.sourceEditIds?.some(id => !local.jobs.some(j => j.result?.sourceEdits?.some(e => e.id === id))) || remote?.rayIds?.some(id => !local.draft.ray?.some(a => a.id === id)) || remote?.conversationVersion && !local.draft.conversationVersion;
     if (!missingCloudState && link.base === localText && remote?.fingerprint === link.fingerprint && remote?.intakeVersion === 1) { report({ state: 'saved' }); return; }
     report({ state: 'saving' });
     if (remote && (remote.fingerprint !== link.fingerprint || missingCloudState)) {

@@ -59,6 +59,18 @@ export function mergeTeam(baseText: string | undefined, localText: string, remot
   if (draft.followup) draft.followup.state = 'outdated';
   const jobs = union(base.jobs, local.jobs, remote.jobs, x => x.id, 'job').map(job => {
     const l = local.jobs.find(x => x.id === job.id), r = remote.jobs.find(x => x.id === job.id);
+    const edits = [...new Map([...(l?.result?.sourceEdits ?? []), ...(r?.result?.sourceEdits ?? [])].map(e => [e.id, e])).values()];
+    if (edits.length) {
+      // Preserve all original corrections even when a conflict selects one
+      // interpretation. A corrected source supersedes its uncorrected result.
+      if (l?.result?.activeEditId && !r?.result?.activeEditId) job = l;
+      else if (r?.result?.activeEditId && !l?.result?.activeEditId) job = r;
+      else if (l?.result?.activeEditId === r?.result?.activeEditId) {
+        if (l?.state === 'complete' && r?.state !== 'complete') job = l;
+        else if (r?.state === 'complete' && l?.state !== 'complete') job = r;
+      }
+      return { ...job, result: { ...job.result!, sourceEdits: edits } };
+    }
     // A complete source result supersedes a portable, paused pending job.
     if (l?.state === 'complete' && r?.state !== 'complete') return l;
     if (r?.state === 'complete' && l?.state !== 'complete') return r;
@@ -67,7 +79,8 @@ export function mergeTeam(baseText: string | undefined, localText: string, remot
   const jobConflicts = conflicts.filter(k => k.startsWith('job.'));
   for (const k of jobConflicts) {
     const id = k.slice(4), l = local.jobs.find(x => x.id === id), r = remote.jobs.find(x => x.id === id);
-    if (l?.state !== r?.state || (text(l?.result) === text(r?.result) && l?.reviewedAt === r?.reviewedAt)) conflicts.splice(conflicts.indexOf(k), 1);
+    const differentCorrections = l?.result?.activeEditId && r?.result?.activeEditId && l.result.activeEditId !== r.result.activeEditId;
+    if (!differentCorrections && (l?.state !== r?.state || (text(l?.result) === text(r?.result) && l?.reviewedAt === r?.reviewedAt))) conflicts.splice(conflicts.indexOf(k), 1);
   }
   draft.revision = Math.max(local.draft.revision, remote.draft.revision) + 1;
   draft.updatedAt = new Date().toISOString();

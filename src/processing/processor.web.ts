@@ -7,6 +7,7 @@ import type { Processor } from './runner';
 import { contactCandidates } from './contact';
 import type { Attachment } from '../domain/draft';
 import { gateway, transcribe } from './voice.web';
+import { sourceText } from './source';
 export const supportedKinds: Attachment['kind'][] = gateway ? ['card', 'voice'] : ['card'];
 
 export function createProcessor(): Processor {
@@ -42,8 +43,12 @@ export function createProcessor(): Processor {
       }
       const original = await source();
       await checkpoint?.(original);
-      if (auth) return { text: original.text, ...await extractDetails(original.text, job.kind, signal, context) };
-      const candidates = job.kind === 'voice' ? requestCandidates(original.text) : {};
+      const text = sourceText(original);
+      if (auth || process.env.EXPO_PUBLIC_WORKFLOW_PREVIEW === '1') return {
+        ...original, ...await extractDetails(text, job.kind, signal, context), text: original.text,
+        sourceEngine: original.sourceEngine ?? (/gemini/i.test(original.engine) ? undefined : original.engine),
+      };
+      const candidates = job.kind === 'voice' ? requestCandidates(text) : {};
       const request = Object.fromEntries(Object.entries(candidates).filter(([, candidate]) => candidate).map(([field, candidate]) => [field, candidate!.value]));
       return { ...original, ...(Object.keys(request).length ? { request } : {}) };
     },

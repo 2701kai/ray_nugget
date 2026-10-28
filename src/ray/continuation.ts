@@ -6,7 +6,13 @@ import { reviewChanges } from '../processing/review';
 // continuation waits for new answers to settle and for actual conflicts to clear.
 export function continuationBlock(draft: Draft, jobs: ProcessingJob[]): 'processing' | 'failed' | 'review' | undefined {
   const latest = [...(draft.ray ?? [])].sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
-  const fresh = draft.attachments.filter(a => a.kind === 'voice' && (latest?.sourceIds ? !latest.sourceIds.includes(a.id) : !latest || a.capturedAt >= latest.createdAt));
+  const fresh = draft.attachments.filter(a => {
+    if (a.kind !== 'voice') return false;
+    const job = jobs.find(j => j.draftId === draft.id && j.attachmentId === a.id);
+    const edit = job?.result?.sourceEdits?.find(e => e.id === job.result?.activeEditId);
+    return !!edit && (job?.state !== 'complete' || !latest || edit.createdAt >= latest.createdAt)
+      || (latest?.sourceIds ? !latest.sourceIds.includes(a.id) : !latest || a.capturedAt >= latest.createdAt);
+  });
   for (const a of fresh) {
     const job = jobs.find(j => j.draftId === draft.id && j.attachmentId === a.id);
     if (job?.state === 'failed') return 'failed';

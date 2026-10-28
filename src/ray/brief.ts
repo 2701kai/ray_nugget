@@ -1,4 +1,5 @@
 import { requestLabels, deferredQuestions } from '../domain/requirements';
+import { sourceText } from '../processing/source';
 import type { Draft } from '../domain/draft';
 import type { ProcessingJob } from '../processing/jobs';
 import type { Digest } from '../backup/archive';
@@ -10,7 +11,7 @@ export function raySource(draft: Draft, jobs: ProcessingJob[]) {
   return JSON.stringify({ request: draft.request, provenance: Object.fromEntries(Object.entries(draft.provenance).filter(([k]) => k.startsWith('request.'))),
     questionDecisions: draft.rayQuestions ?? [], note: draft.note, entries: draft.entries ?? [],
     voice: draft.attachments.filter(a => a.kind === 'voice').map(a => ({ id: a.id, sha256: a.sha256,
-      text: jobs.find(j => j.draftId === draft.id && j.attachmentId === a.id)?.result?.text ?? '' })) });
+      text: sourceText(jobs.find(j => j.draftId === draft.id && j.attachmentId === a.id)?.result) })) });
 }
 function redact(text: string, draft: Draft) {
   for (const value of Object.values(draft.contact).filter(v => v.trim().length >= 2).sort((a, b) => b.length - a.length)) text = text.replace(new RegExp(value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), '[contact]');
@@ -19,7 +20,7 @@ function redact(text: string, draft: Draft) {
 export async function prepareRayInput(draft: Draft, jobs: ProcessingJob[], digest: Digest, now = Date.now()): Promise<RayInput> {
   if (draft.request.intent === 'sell') throw new Error('Ray currently helps find equipment to buy. This seller lead stays saved for the team.');
   const sourceFingerprint = await digest(new TextEncoder().encode(raySource(draft, jobs)));
-  const voice = draft.attachments.filter(a => a.kind === 'voice').map(a => ({ at: a.capturedAt, text: jobs.find(j => j.draftId === draft.id && j.attachmentId === a.id)?.result?.text ?? '' }));
+  const voice = draft.attachments.filter(a => a.kind === 'voice').map(a => ({ at: a.capturedAt, text: sourceText(jobs.find(j => j.draftId === draft.id && j.attachmentId === a.id)?.result) }));
   const pending = voice.filter(v => !v.text).length;
   const sources = [...voice, ...(draft.entries ?? []).map(e => ({ at: e.createdAt, text: e.text })), ...(draft.note ? [{ at: draft.provenance.note?.at ?? draft.createdAt, text: draft.note }] : [])].sort((a, b) => b.at.localeCompare(a.at));
   const lines: string[] = [];
@@ -53,7 +54,7 @@ export async function prepareRayInput(draft: Draft, jobs: ProcessingJob[], diges
   const brief = [...lines, ...(excerpts.length ? ['Source excerpts (newest capture first; confirmed fields override older statements):', ...excerpts] : [])].join('\n');
   const history: NonNullable<RayInput['history']> = [];
   for (const a of draft.attachments.filter(a => a.kind === 'voice' && a.context?.questions.length).sort((a, b) => a.capturedAt.localeCompare(b.capturedAt)).slice(-3)) {
-    const answer = jobs.find(j => j.draftId === draft.id && j.attachmentId === a.id && j.state === 'complete')?.result?.text;
+    const answer = sourceText(jobs.find(j => j.draftId === draft.id && j.attachmentId === a.id && j.state === 'complete')?.result);
     if (!answer) continue;
     history.push({ role: 'assistant', text: a.context!.questions.map(q => redact(q, draft)).join('\n') });
     const safe = redact(answer, draft);

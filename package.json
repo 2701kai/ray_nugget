@@ -1,6 +1,6 @@
 {
   "name": "pete",
-  "version": "0.8.2",
+  "version": "0.9.0",
   "private": true,
   "main": "index.ts",
   "packageManager": "bun@1.4.4",
@@ -11,6 +11,9 @@
     "ios": "expo start --ios",
     "build:web": "bun run prepare:ocr && expo export --platform web && bun scripts/prepare-pwa.ts",
     "preview": "bun scripts/preview.ts",
+    "build:workflow-preview": "bun scripts/build-workflow-preview.ts",
+    "preview:workflow": "bun scripts/workflow-preview.ts",
+    "test:workflow": "playwright test --config playwright.workflow.config.ts",
     "build:hosted": "bun scripts/build-hosted.ts",
     "deploy:hosting": "bun scripts/deploy-hosting.ts",
     "server:hosted": "bun server/hosted.ts",

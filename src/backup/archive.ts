@@ -7,6 +7,7 @@ import { parseRayAdvice } from '../ray/types';
 export const MAX_BACKUP_BYTES = 128 * 1024 * 1024;
 const MAX_MANIFEST_BYTES = 4 * 1024 * 1024;
 const MAGIC = 'PETE_BACKUP_V1\n';
+const CORRECTED_MAGIC = 'PETE_BACKUP_V2\n';
 const HEADER_BYTES = MAGIC.length + 4 + 64;
 const encoder = new TextEncoder();
 const decoder = new TextDecoder('utf-8', { fatal: true });
@@ -61,6 +62,9 @@ function extraction(value: unknown): Extraction {
   const engine = string(raw.engine, 100);
   if (!engine) throw invalid();
   const result: Extraction = { text: string(raw.text, 50_000), engine, fields: parsed };
+  if (raw.sourceEngine !== undefined) result.sourceEngine = string(raw.sourceEngine, 100);
+  if (raw.sourceEdits !== undefined) result.sourceEdits = array(raw.sourceEdits, 50).map(value => { const e = object(value); return { id: id(e.id), text: string(e.text, 50_000), createdAt: date(e.createdAt) }; });
+  if (raw.activeEditId !== undefined) result.activeEditId = id(raw.activeEditId);
   if (raw.request !== undefined) {
     const request = object(raw.request);
     result.request = {};
@@ -81,7 +85,7 @@ function extraction(value: unknown): Extraction {
 // URLs, leases, executable code, or ready-to-run processing instructions.
 function manifest(value: unknown): Omit<BackupSnapshot, 'media'> {
   const root = object(value);
-  if (root.format !== 'pete-backup/v1') throw invalid();
+  if (root.format !== 'pete-backup/v1' && root.format !== 'pete-backup/v2') throw invalid();
   const raw = object(root.draft);
   if (raw.schemaVersion !== 1) throw invalid();
   const contact = object(raw.contact); const request = object(raw.request);
@@ -151,9 +155,13 @@ function manifest(value: unknown): Omit<BackupSnapshot, 'media'> {
     const j = object(value); const attachment = draft.attachments.find(a => a.id === j.attachmentId);
     if (!attachment) throw invalid();
     const job: ProcessingJob = { ...newJob(draft.id, attachment, integer(j.createdAt)), updatedAt: integer(j.updatedAt), state: 'failed', readyAt: NEVER, error: 'Restored original. Retry processing when ready; this may submit a new transcription.' };
-    if (j.result !== undefined) { job.result = extraction(j.result); job.state = 'complete'; job.error = undefined; }
+    if (j.result !== undefined) {
+      job.result = extraction(j.result);
+      if (j.processingComplete !== false) { job.state = 'complete'; job.error = undefined; }
+      else job.error = 'Saved text is ready. Retry to finish reading its details.';
+    }
     if (j.reviewedAt !== undefined) {
-      if (!job.result || !draft.appliedJobs.includes(job.id)) throw invalid();
+      if (!job.result || job.state !== 'complete' || !draft.appliedJobs.includes(job.id)) throw invalid();
       job.reviewedAt = integer(j.reviewedAt);
     }
     if (draft.appliedJobs.includes(job.id) && job.reviewedAt === undefined) throw invalid();
@@ -173,7 +181,10 @@ export function encodeManifest(snapshot: Pick<BackupSnapshot, 'draft' | 'jobs'>)
   for (const job of snapshot.jobs) {
     if (job.draftId !== snapshot.draft.id || job.id !== `${snapshot.draft.id}/${job.attachmentId}` || !snapshot.draft.attachments.some(a => a.id === job.attachmentId && a.kind === job.kind) || (job.state === 'complete' && !job.result)) throw new Error('A source record is incomplete or belongs to another visitor. Backup was not created.');
   }
-  const portable = { format: 'pete-backup/v1', draft: snapshot.draft, jobs: snapshot.jobs.map(job => ({ attachmentId: job.attachmentId, createdAt: job.createdAt, updatedAt: job.updatedAt, ...(job.state === 'complete' ? { result: extraction(job.result), reviewedAt: job.reviewedAt } : {}) })) };
+  const portable = { format: snapshot.jobs.some(job => job.result?.activeEditId) ? 'pete-backup/v2' : 'pete-backup/v1', draft: snapshot.draft, jobs: snapshot.jobs.map(job => ({
+    attachmentId: job.attachmentId, createdAt: job.createdAt, updatedAt: job.updatedAt,
+    ...(job.result && (job.state === 'complete' || job.result.activeEditId) ? { result: extraction(job.result), ...(job.state === 'complete' ? { reviewedAt: job.reviewedAt } : { processingComplete: false }) } : {}),
+  })) };
   const checked = manifest(portable);
   const metadata = encoder.encode(JSON.stringify({ ...portable, draft: checked.draft }));
   if (metadata.byteLength > MAX_MANIFEST_BYTES) throw new Error('This draft has too much source text for a single backup.');
@@ -189,7 +200,7 @@ export async function encodeBackup(snapshot: BackupSnapshot, digest: Digest): Pr
   const metadata = encodeManifest(snapshot);
   const checked = decodeManifest(metadata);
   const header = new Uint8Array(HEADER_BYTES);
-  header.set(encoder.encode(MAGIC));
+  header.set(encoder.encode(JSON.parse(decoder.decode(metadata)).format === 'pete-backup/v2' ? CORRECTED_MAGIC : MAGIC));
   new DataView(header.buffer).setUint32(MAGIC.length, metadata.byteLength);
   header.set(encoder.encode(hash(await digest(metadata))), MAGIC.length + 4);
   const parts: Uint8Array[] = [header, metadata];
@@ -204,14 +215,19 @@ export async function encodeBackup(snapshot: BackupSnapshot, digest: Digest): Pr
 
 export async function decodeBackup(bytes: Uint8Array, digest: Digest): Promise<VerifiedBackup> {
   if (bytes.byteLength > MAX_BACKUP_BYTES) throw new Error('Choose a Pete backup smaller than 128 MiB.');
-  if (bytes.byteLength < HEADER_BYTES || !encoder.encode(MAGIC).every((byte, index) => bytes[index] === byte)) throw invalid();
+  const magic = [MAGIC, CORRECTED_MAGIC].find(value => encoder.encode(value).every((byte, index) => bytes[index] === byte));
+  if (bytes.byteLength < HEADER_BYTES || !magic) throw invalid();
   const size = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength).getUint32(MAGIC.length);
   if (size > MAX_MANIFEST_BYTES || HEADER_BYTES + size > bytes.byteLength) throw invalid();
   const metadata = bytes.subarray(HEADER_BYTES, HEADER_BYTES + size);
   const fingerprint = hash(String.fromCharCode(...bytes.subarray(MAGIC.length + 4, HEADER_BYTES)));
   if (await digest(metadata) !== fingerprint) throw invalid();
   let parsed: Omit<BackupSnapshot, 'media'>;
-  try { parsed = manifest(JSON.parse(decoder.decode(metadata))); } catch { throw invalid(); }
+  try {
+    const value = JSON.parse(decoder.decode(metadata));
+    if (value.format !== (magic === MAGIC ? 'pete-backup/v1' : 'pete-backup/v2')) throw invalid();
+    parsed = manifest(value);
+  } catch { throw invalid(); }
   let offset = HEADER_BYTES + size;
   const media: BackupSnapshot['media'] = [];
   for (const attachment of parsed.draft.attachments) {
