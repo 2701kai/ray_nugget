@@ -4,6 +4,7 @@ import { onIdTokenChanged, type User } from 'firebase/auth';
 import { auth, finishGoogleSignIn, signInWithGoogle, signOutSession } from '../session.web';
 import { Button, ErrorNotice, Txt } from './primitives';
 import { PeteMark } from './Icon';
+import { VersionHint } from './VersionHint';
 import { colors } from './theme';
 
 function signInError(error: unknown) {
@@ -49,6 +50,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
       </>}
       <ErrorNotice message={error} />
       <Txt style={{ fontSize: 16, lineHeight: 24, color: colors.muted }}>For the BEVMAQ team. Once signed in, saved drafts and captures are available offline on this device.</Txt>
+      <VersionHint />
     </View>
   </ScrollView>;
 }

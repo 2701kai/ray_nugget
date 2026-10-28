@@ -1,8 +1,8 @@
-import { GoogleAuth } from 'google-auth-library';
+import { googleClient } from './google-client';
 import { createHash } from 'node:crypto';
 import target from '../deploy/target.json';
 
-const client = await new GoogleAuth({ scopes: ['https://www.googleapis.com/auth/cloud-platform'] }).getClient();
+const client = await googleClient();
 const api = 'https://firebasehosting.googleapis.com/v1beta1';
 async function request<T>(path: string, method: 'GET' | 'POST' | 'PATCH', data?: unknown) {
   return (await client.request<T>({ url: api + path, method, data })).data;

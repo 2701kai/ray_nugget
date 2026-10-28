@@ -32,3 +32,12 @@ export async function pickBackup(maxBytes: number): Promise<Uint8Array | undefin
   if (file.size > maxBytes) throw new Error('Choose a Pete backup smaller than 128 MiB.');
   return new Uint8Array(await file.arrayBuffer());
 }
+
+export async function saveRecording(uri: string, name: string) {
+  const { bytes, mimeType } = await readUri(uri);
+  const extension = mimeType?.includes('mp4') ? 'm4a' : mimeType?.includes('ogg') ? 'ogg' : 'webm';
+  const url = URL.createObjectURL(new Blob([new Uint8Array(bytes)], { type: mimeType || 'audio/webm' }));
+  const link = document.createElement('a'); link.href = url; link.download = `${name}.${extension}`;
+  document.body.appendChild(link); link.click(); link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}

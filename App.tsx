@@ -18,6 +18,7 @@ import { ContactForm, FollowupForm, RequestForm, SettingsForm } from './src/ui/F
 import { CardCapture, VoiceCapture } from './src/ui/MediaCapture';
 import { DraftDetail } from './src/ui/DraftDetail';
 import { Conversation } from './src/ui/Conversation';
+import { VersionHint } from './src/ui/VersionHint';
 import { QuickNote } from './src/ui/QuickNote';
 import { AuthGate } from './src/ui/AuthGate';
 import { RestoreBackup, SaveBackup } from './src/ui/Backup';
@@ -122,6 +123,7 @@ function WorkspaceScreen() {
         </View>
       </View>}
     </View>}
+    <View style={{ paddingVertical: 3, paddingHorizontal: 12, backgroundColor: colors.paper }}><VersionHint /></View>
     {panel && <Sheet title={{ contact: 'A new connection.', request: 'What do they need?', card: 'Keep their card.', voice: 'Voice note.', conversation: 'Record the conversation.', note: 'A detail worth keeping.', settings: 'Your details.', followup: 'Keep the conversation going.', backup: 'Keep a backup.', restore: 'Recover a conversation.' }[panel.kind]} subtitle={panelDraft ? `For ${titleOf(panelDraft)}` : panel.kind === 'restore' ? 'Draft and original files, together' : 'Your identity and visit context'} locked={locked} onClose={() => { setPanel(null); setLocked(false); }}>
       {panel.kind === 'restore' ? <RestoreBackup workspace={workspace} lock={setLocked} done={created => { setPanel(null); setLocked(false); setShowLibrary(false); setSection('conversation'); setNotice(created ? 'Restored draft and originals on this device.' : 'Opened the existing restored draft. Your edits are kept.'); }} /> : panel.kind === 'settings' ? <><SettingsForm workspace={workspace} done={done} /><Button label="Restore a backup" kind="secondary" onPress={() => setPanel({ kind: 'restore' })} />{pwa.installable && <Button label="Install Pete" icon="download" kind="secondary" onPress={() => { void pwa.install(); }} />}{pwa.offlineReady && <Txt style={{ fontSize: 16, color: colors.muted }}>Ready to reopen offline. On iPhone, use Safari’s Share menu → Add to Home Screen.</Txt>}</> : panelDraft ? <>
         {panel.kind === 'backup' && <SaveBackup draft={panelDraft} workspace={workspace} lock={setLocked} />}

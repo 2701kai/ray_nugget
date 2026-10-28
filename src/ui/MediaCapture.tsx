@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { AppState, Platform, Pressable, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { RecordingPresets, requestRecordingPermissionsAsync, setAudioModeAsync, useAudioRecorder, useAudioRecorderState } from 'expo-audio';
+import { useCaptureRecorder } from '../media/useCaptureRecorder';
+import { useUnsavedRecording } from '../media/useUnsavedRecording';
+import { saveRecording } from '../media/files';
 import { MAX_MEDIA_BYTES, MAX_RECORDING_SECONDS, MAX_CONVERSATION_SECONDS, type Draft } from '../domain/draft';
 import type { Workspace } from '../useWorkspace';
 import { Button, Choice, ErrorNotice, Txt } from './primitives';
@@ -45,19 +47,21 @@ export function VoiceCapture({ draft, workspace, done, lock, initialMode = 'memo
   const [consent, setConsent] = useState(false);
   const [phase, setPhase] = useState<'idle' | 'preparing' | 'recording' | 'saving' | 'retry'>('idle');
   const [error, setError] = useState('');
+  const [discarding, setDiscarding] = useState(false);
+  const [downloading, setDownloading] = useState(false);
   const pendingUri = useRef<string | null>(null);
   const active = useRef(false);
-  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY, status => {
-    if (status.hasError || status.mediaServicesDidReset) {
+  const finishRef = useRef<() => void>(() => undefined);
+  const { recorder, status, requestPermission, setMode: setRecordingMode } = useCaptureRecorder(status => {
+    if (status.url) {
       pendingUri.current = status.url;
-      setPhase(status.url ? 'retry' : 'idle');
-      setError(status.error || 'Recording was interrupted. Check the microphone and try again.');
-      active.current = false;
-      lock(false);
+      if (!active.current) finishRef.current();
+    } else if (status.hasError || status.mediaServicesDidReset) {
+      setPhase('idle'); setError(status.error || 'Recording was interrupted. Check the microphone and try again.');
+      if (!active.current) lock(false);
     }
   });
-  const status = useAudioRecorderState(recorder, 250);
-  const finishRef = useRef<() => void>(() => undefined);
+  useUnsavedRecording(phase !== 'idle');
   const seconds = Math.floor(status.durationMillis / 1000);
   const limit = mode === 'conversation' ? MAX_CONVERSATION_SECONDS : MAX_RECORDING_SECONDS;
   useEffect(() => {
@@ -72,8 +76,8 @@ export function VoiceCapture({ draft, workspace, done, lock, initialMode = 'memo
     if (active.current || (mode === 'conversation' && !consent)) return;
     active.current = true; setPhase('preparing'); setError(''); lock(true);
     try {
-      if (!(await requestRecordingPermissionsAsync()).granted) throw new Error('Microphone access is off. Allow it in device or browser settings, then try again.');
-      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+      if (!(await requestPermission()).granted) throw new Error('Microphone access is off. Allow it in device or browser settings, then try again.');
+      await setRecordingMode(true);
       await recorder.prepareToRecordAsync();
       recorder.record();
       setPhase('recording');
@@ -90,15 +94,15 @@ export function VoiceCapture({ draft, workspace, done, lock, initialMode = 'memo
         pendingUri.current = recorder.uri;
       }
       if (!pendingUri.current) throw new Error('No recording was returned. Please start a new note.');
-      await setAudioModeAsync({ allowsRecording: false });
-      const mimeType = Platform.OS === 'web' ? RecordingPresets.HIGH_QUALITY.web.mimeType || 'audio/webm' : 'audio/mp4';
+      await setRecordingMode(false);
+      const mimeType = Platform.OS === 'web' ? 'audio/webm' : 'audio/mp4';
       await workspace.attach(draft.id, pendingUri.current, {
         kind: 'voice', name: mode === 'memo' ? 'Voice memo' : 'Consented conversation', mimeType,
         voiceMode: mode, consentConfirmed: mode === 'conversation' ? consent : undefined,
       });
       pendingUri.current = null; done();
     } catch (e) { setPhase(pendingUri.current ? 'retry' : 'idle'); setError(e instanceof Error ? e.message : 'The recording could not be saved.'); }
-    finally { active.current = false; lock(false); }
+    finally { active.current = false; lock(!!pendingUri.current); }
   }
   finishRef.current = () => { void finish(); };
   const recording = phase === 'recording';
@@ -108,10 +112,20 @@ export function VoiceCapture({ draft, workspace, done, lock, initialMode = 'memo
     <View style={{ alignItems: 'center', gap: 16, padding: 28, borderRadius: 20, backgroundColor: colors.pale }}>
       <View style={{ width: 74, height: 74, borderRadius: 37, alignItems: 'center', justifyContent: 'center', backgroundColor: recording ? colors.green : colors.sage }}><Icon name={recording ? 'mic' : 'clock'} size={30} color={recording ? colors.paper : colors.green} /></View>
       <Txt weight="semibold" style={{ fontSize: 36, lineHeight: 44, fontVariant: ['tabular-nums'], fontFamily: fonts.medium }}>{String(Math.floor(seconds / 60)).padStart(2, '0')}:{String(seconds % 60).padStart(2, '0')}</Txt>
-      <Txt style={{ fontSize: 16, color: colors.muted }}>{phase === 'saving' ? 'Saving the original recording…' : phase === 'preparing' ? 'Preparing microphone…' : recording ? 'Recording · stop to save to this visitor' : phase === 'retry' ? 'Recording kept here · retry saving' : mode === 'conversation' ? 'Up to 30 minutes. Stop and save when you are done.' : 'A short note is all you need. Up to 3 minutes.'}</Txt>
+      <Txt style={{ fontSize: 16, color: colors.muted }}>{phase === 'saving' ? 'Saving the original recording…' : phase === 'preparing' ? 'Preparing microphone…' : recording ? 'Recording · stop to save to this visitor' : phase === 'retry' ? 'Not saved yet · keep this page open' : mode === 'conversation' ? 'Up to 30 minutes. Stop and save when you are done.' : 'A short note is all you need. Up to 3 minutes.'}</Txt>
     </View>
     <ErrorNotice message={error} />
     <Button label={recording ? 'Stop and save recording' : phase === 'retry' ? 'Retry saving recording' : phase === 'saving' ? 'Saving recording…' : phase === 'preparing' ? 'Preparing microphone…' : 'Start recording'} icon={recording ? 'stop' : 'mic'} disabled={phase === 'saving' || phase === 'preparing' || (mode === 'conversation' && !consent)} onPress={recording || phase === 'retry' ? finish : start} />
+    {phase === 'retry' && <>
+      <Button label={downloading ? 'Preparing original…' : 'Download original recording'} kind="secondary" disabled={downloading} icon="download" onPress={async () => {
+        if (!pendingUri.current || downloading) return;
+        setDownloading(true);
+        try { await saveRecording(pendingUri.current, `pete-${draft.id.slice(0, 8)}-${mode}`); }
+        catch (e) { setError(e instanceof Error ? e.message : 'Could not download the recording.'); }
+        finally { setDownloading(false); }
+      }} />
+      {discarding ? <View style={{ gap: 10 }}><Txt>This recording has not been saved to the visitor. Discarding removes this unsaved copy.</Txt><Button label="Keep this recording" kind="secondary" onPress={() => setDiscarding(false)} /><Button label="Discard unsaved recording" kind="danger" disabled={downloading} onPress={() => { pendingUri.current = null; lock(false); done(); }} /></View> : <Button label="Discard recording…" kind="quiet" disabled={downloading} onPress={() => setDiscarding(true)} />}
+    </>}
     <Txt style={{ color: colors.muted, fontSize: 16, lineHeight: 24 }}>{workspace.supportedKinds.includes('voice') ? 'The original stays on this device. A copy goes to your company’s Google service in the EU. Pete transcribes it and fills clear details automatically; you can review or correct them anytime.' : 'The original stays on this device. Transcription is not configured on this platform.'} Leaving the app stops and attempts to save the recording; keep the app open until saving finishes.</Txt>
   </>;
 }

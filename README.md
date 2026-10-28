@@ -15,6 +15,9 @@ Only verified company accounts can open the workspace or use transcription.
 Open the labelled **Settings** control and choose **Sign out** near the top,
 under your email. Mobile body text is 18 pixels, with labels and helper text at
 least 16 pixels, darker secondary text, and larger controls.
+A quiet version hint appears at the bottom of the workspace and sign-in screen;
+Settings shows the full build identifier. It identifies the page actually open,
+including a cached offline page, so an older tab cannot report a newer release.
 The Google account picker hints at the company domain;
 the application and API enforce it independently. Google sign-in with an existing
 account's email keeps its Firebase UID and corresponding local drafts.
@@ -44,7 +47,7 @@ or collect results; Google's accepted operation can continue while Pete is close
 Hosting, storage, compute, and speech use the existing company GCP billing account.
 
 Release targets and non-secret runtime settings are in `deploy/`. Build/release
-the frontend using company Application Default Credentials:
+the frontend with Bun:
 
 ```sh
 bun run build:hosted
@@ -52,9 +55,12 @@ bun run deploy:hosting
 ```
 
 The hosted build uses `dist-hosted/`, leaving the localhost build and its data
-alone. Only Firebase's public browser configuration enters the bundle. The release
-script checks the site's associated app before publishing, and sends only static
-assets. Reserved Firebase `/__/` handlers and `/api/` bypass the service worker.
+alone. The build reads Firebase's public browser configuration and verifies its
+project/app against the target. Publishing uses company Application Default
+Credentials, falling back to an already authenticated gcloud session if ADC has
+expired; tokens stay in memory. The release script checks the site's associated
+app before publishing, and sends only static assets. Reserved Firebase `/__/`
+handlers and `/api/` bypass the service worker.
 
 Google sign-in configuration is in `deploy/firebase-auth.json`. Provision it with:
 
@@ -181,6 +187,12 @@ of automatically submitting a duplicate. That case needs an operation check.
   limited to 15 MiB and audio to 60 MiB. Further recordings can enrich the same
   visitor. Keep the app open until stop/save completes; long recordings and
   screen-lock behavior still need real-device validation.
+- Browser recording collects final audio even when the microphone disconnects or
+  the browser stops the recorder. Leaving the visible app attempts to save to the
+  original visitor. If saving fails, Close stays disabled: retry, download the
+  original, or explicitly confirm discarding it. A navigation warning helps guard
+  unsaved recordings where the browser supports it. Recovery before a successful
+  save depends on the page staying alive; abrupt OS termination is not covered.
 - Draft metadata and media stored together in SQLite on native platforms and
   IndexedDB in browsers. Saved browser drafts and media survive reloads.
 - Capture also commits a persistent processing job. Separate card/audio workers,
@@ -295,8 +307,12 @@ Its server configuration enables the mock gateway URL even without cloud credent
 If reusing a manually started server, use the same `EXPO_PUBLIC_PROCESSING_URL` as
 `.env.example`. Tests cover capture/reload/playback, visitor separation, RFQs, export,
 follow-up corrections, narrow screens, permission denial, and extraction review.
+Recording regressions exercise microphone disconnection, a visibility interruption,
+and a failed media write: downloaded and retried originals must have identical
+hashes, retries must create one job, and the microphone must be released.
 Production tests use port 8082 and additionally cover offline reopen/recording,
-reconnection, source association after switching visitors, and static-only caching.
+reconnection, source association after switching visitors, static-only caching,
+and the visible version remaining tied to the cached build.
 Unit tests cover draft rules, database migration, transaction rollback, queue leases,
 retry/recovery, manual-edit protection, and Google operation persistence/cleanup.
 

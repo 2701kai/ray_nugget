@@ -1,9 +1,10 @@
-import { GoogleAuth } from 'google-auth-library';
 import target from '../deploy/target.json';
 
 // Only Firebase's public client configuration enters the web build.
-const client = await new GoogleAuth({ scopes: ['https://www.googleapis.com/auth/cloud-platform'] }).getClient();
-const { data } = await client.request<{ apiKey: string; projectId: string; appId: string }>({ url: `https://firebase.googleapis.com/v1beta1/projects/${target.project}/webApps/${target.webApp}/config` });
+const response = await fetch(`https://${target.site}.web.app/__/firebase/init.json`);
+if (!response.ok) throw new Error('Could not read the public Firebase app configuration.');
+const data = await response.json() as { apiKey: string; projectId: string; appId: string };
+if (typeof data.apiKey !== 'string' || !data.apiKey) throw new Error('Firebase public configuration is incomplete.');
 if (data.projectId !== target.project || data.appId !== target.webApp) throw new Error('Firebase app does not match the reviewed deployment target.');
 const env = { ...process.env, EXPO_NO_DOTENV: '1', NODE_ENV: 'production', PETE_WEB_OUTPUT: 'dist-hosted',
   EXPO_PUBLIC_PROCESSING_URL: '/api', EXPO_PUBLIC_FIREBASE_API_KEY: data.apiKey, EXPO_PUBLIC_FIREBASE_PROJECT_ID: data.projectId,

@@ -6,6 +6,7 @@ import { type Draft, rfqGaps } from '../domain/draft';
 import type { Workspace } from '../useWorkspace';
 import { Button, Choice, ErrorNotice, Field, Txt } from './primitives';
 import { colors } from './theme';
+import { VersionHint } from './VersionHint';
 import { Icon } from './Icon';
 import { sessionEmail, signOutSession } from '../session';
 
@@ -61,6 +62,7 @@ export function SettingsForm({ workspace, done }: { workspace: Workspace; done: 
   return <>
     <ErrorNotice message={save.error} />
     {!!sessionEmail() && <View style={{ gap: 10, paddingBottom: 18, borderBottomWidth: 1, borderColor: colors.line }}><Txt style={{ color: colors.muted }}>Signed in as</Txt><Txt weight="bold" selectable>{sessionEmail()}</Txt><Button label="Sign out" kind="secondary" disabled={save.busy} onPress={() => save.run(signOutSession)} /><Txt style={{ fontSize: 16, color: colors.muted }}>Your drafts stay on this device.</Txt></View>}
+    <VersionHint full />
     <Txt style={{ color: colors.muted }}>These details appear in the introduction you prepare for a visitor.</Txt>
     <Field label="Your name" value={prefs.sender.name} onChangeText={name => setPrefs({ ...prefs, sender: { ...prefs.sender, name } })} placeholder="Your full name" />
     <Field label="Your company" value={prefs.sender.company} onChangeText={company => setPrefs({ ...prefs, sender: { ...prefs.sender, company } })} />

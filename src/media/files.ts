@@ -40,3 +40,8 @@ export async function pickBackup(maxBytes: number): Promise<Uint8Array | undefin
     return await file.bytes();
   } finally { if (file.uri.startsWith(Paths.cache.uri) && file.exists) file.delete(); }
 }
+
+export async function saveRecording(uri: string, _name: string) {
+  if (!(await Sharing.isAvailableAsync())) throw new Error('Saving files is unavailable on this device. Keep this recording open and retry saving.');
+  await Sharing.shareAsync(uri, { mimeType: 'audio/mp4', dialogTitle: 'Keep original recording' });
+}

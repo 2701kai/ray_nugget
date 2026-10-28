@@ -14,6 +14,13 @@ test('installed shell reopens offline, keeps the selected visitor, and queues au
   await expect(page.getByRole('heading', { name: 'Offline visitor', exact: true })).toBeVisible();
   await page.evaluate(async () => { await navigator.serviceWorker.ready; });
   await expect.poll(() => page.evaluate(() => !!navigator.serviceWorker.controller)).toBe(true);
+  const version = page.getByText(/^v0\.2\.0 · [a-f0-9]{7}$/);
+  await expect(version).toBeVisible();
+  await expect(version).toHaveCSS('font-size', '16px');
+  const loadedVersion = await version.textContent();
+  const metadata = await page.evaluate(() => ({ version: document.querySelector<HTMLMetaElement>('meta[name="pete-version"]')?.content, build: document.querySelector<HTMLMetaElement>('meta[name="pete-build"]')?.content }));
+  expect(metadata.version).toBe('0.2.0'); expect(metadata.build).toMatch(/^[a-f0-9]{16}$/);
+  expect(loadedVersion).toContain(metadata.build!.slice(0, 7));
   const manifest = await page.evaluate(async () => (await fetch(document.querySelector<HTMLLinkElement>('link[rel="manifest"]')!.href)).json());
   expect(manifest.display).toBe('standalone');
   const cached = await page.evaluate(async () => (await Promise.all((await caches.keys()).map(async key => (await (await caches.open(key)).keys()).map(r => new URL(r.url).pathname)))).flat());
@@ -24,6 +31,7 @@ test('installed shell reopens offline, keeps the selected visitor, and queues au
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Offline visitor', exact: true })).toBeVisible();
   await expect(page.getByText(/^Offline · capture continues/)).toBeVisible();
+  await expect(version).toHaveText(loadedVersion!);
   await page.getByRole('button', { name: 'Add quick note', exact: true }).click();
   await page.getByLabel('Quick note', { exact: true }).fill('Needs a glass bottle filler.');
   await page.getByRole('button', { name: 'Save note', exact: true }).click();
