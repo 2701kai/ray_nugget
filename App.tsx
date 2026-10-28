@@ -9,6 +9,7 @@ import { Manrope_700Bold } from '@expo-google-fonts/manrope/700Bold';
 import { Manrope_800ExtraBold } from '@expo-google-fonts/manrope/800ExtraBold';
 import { useWorkspace } from './src/useWorkspace';
 import { usePwa } from './src/usePwa';
+import { useUpdateGuard } from './src/pwa/updateGuard';
 import { exportDraft, titleOf, rfqGaps, type CaptureKind, type Draft } from './src/domain/draft';
 import { downloadJson } from './src/media/files';
 import { colors } from './src/ui/theme';
@@ -50,6 +51,7 @@ function WorkspaceScreen() {
   const teamLoading = workspace.cloudEnabled && pwa.online && !workspace.teamView.available && !workspace.teamView.teams.length && !workspace.teamView.error;
   const captureDisabled = workspace.loading || !!workspace.error || busy;
   const disabled = captureDisabled || teamLoading;
+  useUpdateGuard(workspace.loading || !!workspace.error || busy || locked || !!panel);
   const selectedTeam = workspace.teamView.teams.find(t => t.id === workspace.scope);
   const inScope = (id: string) => selectedTeam ? workspace.teamView.links[id]?.teamId === selectedTeam.id : !workspace.teamView.links[id];
   const remoteCopies = workspace.teamView.copies.filter(c => c.teamId === selectedTeam?.id && !workspace.drafts.some(d => d.id === c.draftId && inScope(d.id)) && `${c.title} ${c.company}`.toLowerCase().includes(query.toLowerCase()));
@@ -98,7 +100,7 @@ function WorkspaceScreen() {
     {library && <Pressable accessibilityRole="button" accessibilityLabel="Event auswählen" onPress={() => setPanel({ kind: 'scope' })} style={{ paddingHorizontal: 20, paddingTop: 18, paddingBottom: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}><View style={{ flex: 1 }}><Txt style={{ fontSize: 16, color: colors.muted }}>{selectedTeam ? 'BEVMAQ · gemeinsam' : 'Deine persönlichen Besuche'}</Txt><Txt weight="bold" style={{ fontSize: 27, lineHeight: 35, letterSpacing: -0.8 }}>{teamLoading ? 'Bereich wird geladen…' : selectedTeam?.name || workspace.preferences.event || 'Meine Besuche'}</Txt></View><Icon name="chevron" color={colors.green} size={20} /></Pressable>}
     {!!workspace.teamView.error && <View style={styles.banner}><Txt style={{ fontSize: 16 }}>{workspace.teamView.error}</Txt></View>}
     {!pwa.online && <View style={styles.banner}><Txt style={{ fontSize: 16, color: colors.green }}>Offline · Du kannst weiter erfassen. Verarbeitung und Teilen folgen bei Verbindung.</Txt></View>}
-    {pwa.updateReady && <View style={styles.banner}><Txt style={{ fontSize: 16, color: colors.muted }}>Ein Update ist bereit. Schließe nach dem Speichern alle Pete-Tabs und öffne Pete erneut.</Txt></View>}
+    {pwa.updateReady && <View style={styles.banner}><Txt style={{ fontSize: 16, color: colors.muted }}>Neue Version bereit · Pete aktualisiert sich in einer kurzen Pause.</Txt></View>}
     <ErrorNotice message={error || workspace.error} />
     {!!workspace.error && <Button label="Lokalen Speicher erneut öffnen" onPress={workspace.retry} />}
     {!!workspace.processingError && !workspace.error && <View style={styles.banner}><Txt accessibilityLiveRegion="polite" style={{ fontSize: 16, color: colors.muted }}>{workspace.processingError}</Txt><Button label="Verarbeitung erneut starten" kind="quiet" onPress={workspace.retry} /></View>}

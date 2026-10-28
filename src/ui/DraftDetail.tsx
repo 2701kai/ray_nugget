@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Image, View } from 'react-native';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
+import { useUpdateGuard } from '../pwa/updateGuard';
 import { rfqGaps, titleOf, type Attachment, type Draft } from '../domain/draft';
 import type { Workspace } from '../useWorkspace';
 import { mediaUri, releaseUri } from '../media/files';
@@ -13,6 +14,7 @@ import { ProcessingStatus } from './ExtractionReview';
 function VoicePlayer({ uri }: { uri: string }) {
   const player = useAudioPlayer(uri);
   const status = useAudioPlayerStatus(player);
+  useUpdateGuard(status.playing);
   return <Button label={status.playing ? 'Aufnahme pausieren' : 'Aufnahme abspielen'} kind="quiet" icon={status.playing ? 'pause' : 'play'} onPress={async () => {
     if (status.playing) player.pause();
     else { if (status.didJustFinish || status.currentTime >= status.duration) await player.seekTo(0); player.play(); }

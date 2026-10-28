@@ -5,6 +5,7 @@ import { auth, accessToken, storageName } from '../session.web';
 import { gateway, upload } from '../processing/voice.web';
 import { openTeamStorage } from './storage.web';
 import { manifestText, mergeTeam } from './merge';
+import { holdUpdate } from '../pwa/updateGuard.web';
 import { emptyTeamView, type Team, type TeamCopy, type TeamLink, type TeamStatus, type TeamView } from './types';
 const encoder = new TextEncoder();
 
@@ -15,6 +16,7 @@ export function startTeamSync(repo: DraftRepository, changed: (view: TeamView) =
   let view: TeamView = structuredClone(emptyTeamView), busy = false;
   const ready = uid && gateway ? openTeamStorage(storageName()!) : undefined;
   const decisions = new Map<string, { local: string; remote: string; choices: Record<string, 'local' | 'team'> }>();
+  const pendingDecisions = new Map<string, () => void>();
   function emit() { if (!controller.signal.aborted) changed({ ...view, states: { ...view.states }, links: { ...view.links } }); }
   function status(id: string, state: TeamStatus) { view.states[id] = state; emit(); }
   async function api(path: string, init: RequestInit = {}) {
@@ -73,6 +75,10 @@ export function startTeamSync(repo: DraftRepository, changed: (view: TeamView) =
     if (!local) return;
     const report = (state: TeamStatus) => status(id, { revision: local.draft.revision, ...state });
     const localText = manifestText(local);
+    const previousDecision = decisions.get(id);
+    if (previousDecision && (previousDecision.local !== localText || previousDecision.remote !== remote?.fingerprint)) {
+      decisions.delete(id); pendingDecisions.get(id)?.(); pendingDecisions.delete(id);
+    }
     if (!navigator.onLine) { report({ state: 'pending' }); return; }
     if (link.base === localText && remote?.fingerprint === link.fingerprint) { report({ state: 'saved' }); return; }
     report({ state: 'saving' });
@@ -104,7 +110,7 @@ export function startTeamSync(repo: DraftRepository, changed: (view: TeamView) =
       if (!canApply()) { report({ state: 'pending' }); return; }
       const applied = await store.apply(candidate, media, localText, { ...link, base: latest.text, fingerprint: remote.fingerprint, author: remote.updatedBy });
       if (!applied) { report({ state: 'pending' }); return; }
-      decisions.delete(id); await refresh();
+      decisions.delete(id); pendingDecisions.get(id)?.(); pendingDecisions.delete(id); await refresh();
       // Re-read on the next pass. A concurrent edit/processing result never gets
       // replaced by a network response or acknowledged as already uploaded.
       report({ revision: candidate.draft.revision, state: manifestText(candidate) === latest.text ? 'saved' : 'pending' });
@@ -153,7 +159,7 @@ export function startTeamSync(repo: DraftRepository, changed: (view: TeamView) =
   }
   return {
     get view() { return view; }, wake,
-    close() { controller.abort(); clearInterval(timer); clearTimeout(debounce); window.removeEventListener('online', wake); void ready?.then(s => s.close()); },
+    close() { controller.abort(); clearInterval(timer); clearTimeout(debounce); window.removeEventListener('online', wake); for (const release of pendingDecisions.values()) release(); pendingDecisions.clear(); void ready?.then(s => s.close()); },
     async share(id: string, teamId: string) {
       const team = view.teams.find(t => t.id === teamId);
       if (!ready || !team) throw new Error('Wähle einen verfügbaren Team-Bereich.');
@@ -177,6 +183,13 @@ export function startTeamSync(repo: DraftRepository, changed: (view: TeamView) =
       await store.apply(latest.snapshot, media, null, { teamId, base: latest.text, fingerprint: copy.fingerprint, author: copy.updatedBy });
       view.links = await store.links(); status(id, { state: 'saved', revision: latest.snapshot.draft.revision }); await refresh(); wake();
     },
-    async resolve(id: string, choices: Record<string, 'local' | 'team'>) { const current = decisions.get(id); if (current) decisions.set(id, { ...current, choices }); wake(); },
+    async resolve(id: string, choices: Record<string, 'local' | 'team'>) {
+      const current = decisions.get(id);
+      if (current) {
+        decisions.set(id, { ...current, choices });
+        if (!pendingDecisions.has(id)) pendingDecisions.set(id, holdUpdate());
+      }
+      wake();
+    },
   };
 }

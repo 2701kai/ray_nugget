@@ -127,8 +127,8 @@ redirect URIs. The browser uses its current Hosting domain as `authDomain` so
 redirects work with third-party storage restrictions. The config enables Google;
 it does not disable previously enabled providers. Email/password has been disabled
 in Firebase Auth for this deployment. Existing users and UIDs are retained; do not
-delete/recreate accounts to switch providers. After an update, close and reopen
-existing Pete tabs to activate the waiting service worker without clearing data.
+delete/recreate accounts to switch providers. App updates preserve the persistent
+Google session; signing out is never part of an update.
 
 To update the API, build and deploy its container with the dedicated service identity:
 
@@ -178,8 +178,24 @@ The first successful online load caches the application shell. Settings confirms
 when it is ready to reopen offline. Captures remain local while offline, and queued
 processing resumes after reconnecting. Large OCR resources load on demand. Only
 public application resources enter the service-worker cache; customer media and
-drafts stay in IndexedDB. Updates wait until existing Pete tabs are closed, so an
-update cannot reload an ongoing recording. Development/HMR does not install a
+drafts stay in IndexedDB. From v0.4.2, Pete checks for updates on opening,
+foreground return, reconnect and every minute while visible. A fully cached new
+worker activates immediately, while each page waits for a five-second idle period
+before refreshing. Open capture/edit/review sheets, focused inputs, playback,
+team-conflict review and foreground saves block that refresh. Hidden tabs wait
+until visible. IndexedDB drafts and the persistent Google session survive.
+Older pages retain their public assets until they acknowledge a newer build;
+unknown or suspended clients prevent cache deletion, not other tabs' updates.
+A failed/inconsistent installation leaves the previous worker available. Existing
+v0.4.1 or older pages need one ordinary refresh after this release installs; they
+cannot acquire new page-side update logic without loading it. No logout or data
+clearing is needed. `bun run test:updates` exercises real release transitions,
+multiple tabs, unfinished forms/recordings, sign-in persistence and failed installs
+with synthetic data and a locally served hosted build.
+
+The lifecycle uses [skipWaiting](https://developer.mozilla.org/en-US/docs/Web/API/ServiceWorkerGlobalScope/skipWaiting)
+and [controllerchange](https://developer.mozilla.org/en-US/docs/Web/API/ServiceWorkerContainer/controllerchange_event);
+page refresh safety is enforced separately by Pete. Development/HMR does not install a
 worker; unregister a previous worker in browser DevTools before switching that
 same origin back to development, without clearing IndexedDB/site data.
 

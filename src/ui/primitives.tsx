@@ -3,6 +3,7 @@ import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type T
 import { colors, fonts } from './theme';
 import { Icon, type IconName } from './Icon';
 import { StableTextInput } from './StableTextInput';
+import { useUpdateGuard } from '../pwa/updateGuard';
 
 export function Txt({ children, style, weight = 'regular', ...props }: TextProps & { weight?: keyof typeof fonts }) {
   return <Text {...props} style={[{ fontFamily: fonts[weight], color: colors.ink, fontSize: 18, lineHeight: 28 }, style]}>{children}</Text>;
@@ -24,6 +25,7 @@ export function ErrorNotice({ message }: { message?: string }) {
   return message ? <View accessibilityRole="alert" style={{ backgroundColor: colors.dangerBg, padding: 12, borderRadius: 10 }}><Txt style={{ color: colors.danger, fontSize: 16 }}>{message}</Txt></View> : null;
 }
 export function Sheet({ title, subtitle, children, onClose, locked = false }: { title: string; subtitle?: string; children: ReactNode; onClose: () => void; locked?: boolean }) {
+  useUpdateGuard();
   const { width } = useWindowDimensions();
   return <Modal transparent animationType="fade" visible onRequestClose={() => { if (!locked) onClose(); }}>
     <View style={s.overlay} accessibilityViewIsModal>
