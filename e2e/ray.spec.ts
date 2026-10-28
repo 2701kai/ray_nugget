@@ -22,9 +22,9 @@ test('Ask Ray saves advice and machine choices, restores offline, and detects la
   let calls = 0;
   await page.route('**/ray/*', async route => { calls++; await answer(route); });
   await page.goto('/'); await page.getByRole('button', { name: 'New visitor', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Find machines', exact: true })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Ask Ray', exact: true })).toBeDisabled();
   await note(page, 'We need a filler for peach nectar. Krones preferred; container and capacity unknown.');
-  await page.getByRole('button', { name: 'Find machines', exact: true }).click();
+  await page.getByRole('button', { name: 'Ask Ray', exact: true }).click();
   await expect(page.getByText('Which container and hourly output does the visitor need?', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Save for visitor', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Saved for visitor ✓', exact: true })).toBeVisible();
@@ -34,15 +34,15 @@ test('Ask Ray saves advice and machine choices, restores offline, and detects la
   await page.screenshot({ path: test.info().outputPath('ray-mobile-320.png') });
   await page.reload(); await expect(page.getByRole('button', { name: 'Saved for visitor ✓', exact: true })).toBeVisible();
   await context.setOffline(true);
-  await page.getByRole('button', { name: 'Find machines', exact: true }).click();
+  await page.getByRole('button', { name: 'Ask Ray', exact: true }).click();
   await expect(page.getByText('Ask Ray when you are online. Recording and saving on this device still work.', { exact: true })).toBeVisible();
   expect(calls).toBe(1); await context.setOffline(false);
   await note(page, 'The visitor confirmed glass bottles and 3000 bottles per hour.');
-  await expect(page.getByText('Earlier advice · Find machines to include new details', { exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Find machines', exact: true }).click();
+  await expect(page.getByText('Earlier advice · Ask Ray to include new details', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Ask Ray', exact: true }).click();
   await expect.poll(async () => (await visitors(page))[0].ray.length).toBe(2);
   expect((await visitors(page))[0].ray[0].selectedSkus).toEqual(['SYNTHETIC-1']);
-  await expect(page.getByText('Earlier advice · Find machines to include new details', { exact: true })).toHaveCount(0);
+  await expect(page.getByText('Earlier advice · Ask Ray to include new details', { exact: true })).toHaveCount(0);
 });
 
 test('pending Ray response stays with its original visitor and never blocks a new capture', async ({ page }) => {
@@ -51,8 +51,8 @@ test('pending Ray response stays with its original visitor and never blocks a ne
   await page.goto('/'); await page.getByRole('button', { name: 'New visitor', exact: true }).click();
   await note(page, 'First visitor needs a juice filler.');
   const firstId = (await visitors(page))[0].id;
-  await page.getByRole('button', { name: 'Find machines', exact: true }).click();
-  await expect(page.getByText(/^Checking machines for /)).toBeVisible();
+  await page.getByRole('button', { name: 'Ask Ray', exact: true }).click();
+  await expect(page.getByText(/^Asking Ray for /)).toBeVisible();
   await expect(page.getByRole('button', { name: 'Capture a voice note', exact: true })).toBeEnabled();
   await expect.poll(() => !!pending).toBe(true);
   await page.getByRole('button', { name: 'New visitor', exact: true }).click();
@@ -72,13 +72,14 @@ test('Ray failure leaves notes intact; voice answer uses the same visitor and re
   await page.route('**/transcriptions/**', route => route.fulfill({ json: { state: 'complete', text: 'Glass bottles, 3000 bottles per hour.', engine: 'Synthetic voice fixture' }, headers: { 'Access-Control-Allow-Origin': route.request().headers().origin } }));
   await page.goto('/'); await page.getByRole('button', { name: 'New visitor', exact: true }).click();
   await note(page, 'Synthetic visitor needs a filler.');
-  await page.getByRole('button', { name: 'Find machines', exact: true }).click();
+  await page.getByRole('button', { name: 'Ask Ray', exact: true }).click();
   await expect(page.getByText('Ray is busy. Please retry shortly.', { exact: true })).toBeVisible();
   const before = (await visitors(page))[0]; expect(before.entries[0].text).toBe('Synthetic visitor needs a filler.');
-  fail = false; await page.getByRole('button', { name: 'Find machines', exact: true }).click();
+  fail = false; await page.getByRole('button', { name: 'Ask Ray', exact: true }).click();
   await page.getByRole('button', { name: 'Answer by voice', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Stop and save recording', exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Stop Ray', exact: true })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Ask Ray', exact: true })).toBeDisabled();
+  await expect(page.getByText(/^00:0[1-3]$/)).toBeVisible(); // Let the fake microphone produce audio before stopping.
   await page.getByRole('button', { name: 'Stop and save recording', exact: true }).click();
   await expect.poll(async () => (await visitors(page))[0].attachments.length).toBe(1);
   expect((await visitors(page))[0].id).toBe(before.id);

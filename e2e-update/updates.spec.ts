@@ -160,13 +160,13 @@ test('an update waits for Ray and keeps its saved advice and signed-in visitor a
     await page.getByRole('button', { name: 'Add note', exact: true }).click();
     await page.getByLabel('Note', { exact: true }).fill('Synthetic visitor needs a juice filler.');
     await page.getByRole('button', { name: 'Save note', exact: true }).click();
-    await page.getByRole('button', { name: 'Find machines', exact: true }).click();
+    await page.getByRole('button', { name: 'Ask Ray', exact: true }).click();
     await expect.poll(() => !!pending).toBe(true);
     site.next(); await checkUpdate(page);
     await expect(page.getByText(/New version ready/)).toBeAttached();
     await page.waitForTimeout(6500);
     await expect(page.getByText('Version 8.0.1', { exact: true })).toBeAttached();
-    await expect(page.getByText(/^Checking machines for Synthetic Update Visitor/)).toBeVisible();
+    await expect(page.getByText(/^Asking Ray for Synthetic Update Visitor/)).toBeVisible();
     const input = pending!.request().postDataJSON();
     await pending!.fulfill({ json: { state: 'complete', result: { ...input, id: pending!.request().url().split('/').pop(), createdAt: new Date().toISOString(), text: 'Synthetic saved Ray advice.', questions: [], machines: [], selectedSkus: [] } } });
     await expect(page.getByText('Version 8.0.2', { exact: true })).toBeVisible();

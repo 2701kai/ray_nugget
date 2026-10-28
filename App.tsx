@@ -28,7 +28,7 @@ import { AuthGate } from './src/ui/AuthGate';
 import { RestoreBackup, SaveBackup } from './src/ui/Backup';
 
 type Kind = CaptureKind | 'settings' | 'followup' | 'note' | 'conversation' | 'backup' | 'restore' | 'cloud' | 'scope';
-type Panel = { kind: Kind; draftId?: string; rayAnswer?: boolean };
+type Panel = { kind: Kind; draftId?: string; answerQuestions?: string[] };
 
 function WorkspaceScreen() {
   const workspace = useWorkspace();
@@ -62,7 +62,7 @@ function WorkspaceScreen() {
   const remoteCopies = workspace.teamView.copies.filter(c => c.teamId === selectedTeam?.id && !workspace.drafts.some(d => d.id === c.draftId && inScope(d.id)) && `${c.title} ${c.company}`.toLowerCase().includes(query.toLowerCase()));
   const list = workspace.drafts.filter(record => inScope(record.id)).filter(record => `${record.contact.name} ${record.contact.company} ${record.event} ${record.request.product}`.toLowerCase().includes(query.toLowerCase()));
 
-  async function start(kind: CaptureKind | 'note' | 'conversation' | 'visitor', forceNew = false, rayAnswer = false) {
+  async function start(kind: CaptureKind | 'note' | 'conversation' | 'visitor', forceNew = false, answerQuestions?: string[]) {
     const createsVisitor = forceNew || !draft || library;
     if (changing.current || (createsVisitor ? disabled : captureDisabled)) return;
     changing.current = true; setBusy(true); setError(''); setNotice('');
@@ -70,7 +70,7 @@ function WorkspaceScreen() {
       const entry: CaptureKind = kind === 'conversation' ? 'voice' : kind === 'note' || kind === 'visitor' ? 'contact' : kind;
       const target = forceNew || !draft || library ? await workspace.create(entry) : draft;
       setShowLibrary(false); setSection('conversation');
-      setPanel(kind === 'visitor' ? null : { kind, draftId: target.id, rayAnswer });
+      setPanel(kind === 'visitor' ? null : { kind, draftId: target.id, answerQuestions });
     } catch (e) { setError(e instanceof Error ? e.message : 'Could not open the conversation.'); }
     finally { changing.current = false; setBusy(false); }
   }
@@ -132,7 +132,7 @@ function WorkspaceScreen() {
         </View>
         <View style={{ flex: 1, flexDirection: 'row', minHeight: 0 }}>
           <ScrollView style={{ flex: 1 }} keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: desktop ? 28 : 14, paddingBottom: 28 }}>
-            {desktop || section === 'conversation' ? <View style={{ gap: 14 }}><TeamConflict key={JSON.stringify(workspace.teamView.states[draft!.id]?.comparisons)} id={draft!.id} workspace={workspace} /><RayAssistant key={`ray-${draft!.id}`} draft={draft!} workspace={workspace} recorderOpen={voiceOpen} speak={() => { void start('voice', false, true); }} /><Conversation key={draft!.id} draft={draft!} workspace={workspace} /></View> : details}
+            {desktop || section === 'conversation' ? <View style={{ gap: 14 }}><TeamConflict key={JSON.stringify(workspace.teamView.states[draft!.id]?.comparisons)} id={draft!.id} workspace={workspace} /><RayAssistant key={`ray-${draft!.id}`} draft={draft!} workspace={workspace} recorderMode={voiceOpen ? panel.kind === 'conversation' ? 'conversation' : 'memo' : undefined} speak={questions => { void start('voice', false, questions); }} /><Conversation key={draft!.id} draft={draft!} workspace={workspace} /></View> : details}
           </ScrollView>
           {desktop && <ScrollView style={{ width: 320, flexGrow: 0, borderLeftWidth: 1, borderColor: colors.line, backgroundColor: colors.paper }} contentContainerStyle={{ padding: 22 }}>{details}</ScrollView>}
         </View>
@@ -146,7 +146,7 @@ function WorkspaceScreen() {
     {voiceOpen && panelDraft && <View style={styles.captureBar} testID="recording-dock">
       <ScrollView style={{ maxHeight: Math.max(180, Math.min(height * 0.55, 420)), flexGrow: 0 }} contentContainerStyle={{ paddingVertical: 6 }} keyboardShouldPersistTaps="handled">
         <View style={{ width: '100%', maxWidth: 720, alignSelf: 'center', gap: 10 }}>
-          <VoiceCapture key={`${panelDraft.id}:${panel.kind}`} draft={panelDraft} workspace={workspace} done={done} lock={setLocked} initialMode={panel.kind === 'conversation' ? 'conversation' : 'memo'} autoStart={panel.kind === 'voice'} compact rayAnswer={panel.rayAnswer} onClose={() => { if (!locked) setPanel(null); }} />
+          <VoiceCapture key={`${panelDraft.id}:${panel.kind}`} draft={panelDraft} workspace={workspace} done={done} lock={setLocked} initialMode={panel.kind === 'conversation' ? 'conversation' : 'memo'} autoStart={panel.kind === 'voice'} compact answerQuestions={panel.answerQuestions} onClose={() => { if (!locked) setPanel(null); }} />
         </View>
       </ScrollView>
     </View>}

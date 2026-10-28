@@ -1,16 +1,20 @@
 # Pete → Ray consultation
 
-Pete 0.8.1 corrects search priority, stopping and team recovery for the assisted continuation to the visitor-bound equipment advice introduced in 0.7.0. The authenticated Pete
+Pete 0.8.2 restores the 0.7.1 equipment-advice policy while keeping assisted
+continuation, richer request fields and team recovery. The authenticated Pete
 API uses Ray's existing public consultation interface. Capture, transcription,
 cloud saving and lead intake remain independent. No inquiry endpoint or messaging
 action is called. CRM delivery remains disabled.
 
-A search uses the known need immediately, with missing technical details stated as
-uncertainty. It does not demand every refinement before showing catalogue evidence.
+Ask Ray qualifies unclear technical fit with up to three essential questions or
+suggests up to three evidenced candidates. Automatic scheduling does not force a
+question or a machine search on every turn. Known and deferred questions are skipped.
 Previously discussed SKUs are rechecked for availability and supplied as visible
 references, never as selected machines. Evidence may include rejected alternatives;
-Pete labels the cards “Machines in Ray’s assessment”, not guaranteed matches.
-Earlier cards remain visible with their original consultation and a not-rechecked label.
+Pete shows the complete assessment before “Listings referenced in this advice.”
+Earlier listings stay with their original assessment in expandable history. Saved
+choices remain accessible with an earlier-advice label. New requests omit the old
+machine-search goal; legacy requests remain valid. No archive migration is needed.
 
 ## Contract and configuration
 
@@ -71,19 +75,26 @@ Team merging unions consultations; concurrent edits to the same selection are
 explicit conflicts. Cloud pointer `rayIds` prevents older clients from silently
 dropping already-saved consultations. Use Pete 0.7.0+ for backups containing advice.
 
-`Find machines` activates assistance for the selected visitor in this open app session.
-`Answer by voice` opens the same recorder, retaining the current request and Ray
-questions at capture start. Once new voice jobs finish and genuine conflicts have
+`Ask Ray` activates assistance for the selected visitor in this open app session.
+`Answer by voice` opens the memo recorder, retaining the current request and only
+the selected, displayed Ray question at capture start. General voice notes and
+consented conversation recordings retain known requirements without being assigned
+an implicit Ray question. Existing captures retain their original context. Once new voice jobs finish and genuine conflicts have
 been resolved, Pete requests updated advice automatically. The current visitor
 must still be selected, the app visible/online, and capture/edit panels closed.
 Metadata changes and saved advice do not trigger another call. Calls are spaced
 at least three seconds apart, grouped while captures are pending, and stop after
-12 automatic updates per activation. Errors stop assistance; retry with Find machines is explicit.
-Stop Ray disables continuation and aborts the browser request; a late reply cannot be saved by that stopped request. The server may finish and cache work already started. Close Ray also stops assistance and collapses the card without deleting saved advice. Reopening the card does not start a search or the microphone.
-A reload starts stopped; offline capture continues normally. No audio is streamed
+12 automatic updates per activation. Errors pause automatic updates; retry with Ask Ray is explicit.
+Pause automatic updates leaves an in-flight reply to finish and save. Cancel request
+appears only while busy, disables continuation and aborts the browser request; a
+late reply cannot be saved by that canceled request. The server may finish and cache
+work already started. Hide Ray collapses the panel without changing continuation
+or deleting advice. Show Ray does not initiate a request or start the microphone.
+A reload starts paused; offline capture continues normally. No audio is streamed
 while recording for live coaching.
 
-The screen shows discussed listings before one follow-up question, with additional questions/advice optional.
+The screen shows the full assessment and a follow-up question before referenced
+listings. Other questions can be selected explicitly for a contextual voice answer.
 Not known yet records a visitor-bound decision; Revisit question reopens it.
 Question decisions are append-only and merge by ID. They travel in backups and
 team/cloud manifests. A `conversationVersion` cloud pointer rejects older clients
@@ -93,7 +104,11 @@ protected. Narrow translation equivalences avoid false conflicts. Contextual
 extraction includes the source's request/question snapshot in its cache identity.
 Legacy context-free extraction remains compatible with older clients.
 Previously saved advice remains readable offline; new consultations need a
-connection. Status distinguishes searching (with elapsed time), processing a saved answer, waiting, and stopped. The microphone remains off until a recording control is used; the recording dock names the visitor and the purpose of an answer. Native hosted auth/processing is not introduced by this PWA release.
+connection. Status distinguishes asking (with elapsed time), processing a saved
+recording, a completed reply and a canceled request. Automatic updates are shown
+separately. A completed consultation needs no Stop action. The microphone remains
+off until a recording control is used; the recording dock names the visitor, mode
+and selected question when answering. Native hosted auth/processing is not introduced by this PWA release.
 
 ## Verification
 
@@ -109,7 +124,7 @@ behavior. A separate full-project “Continue in Ray” handoff remains future w
 `tests/conversation.test.ts` covers additive enrichment, contextual cache identity,
 unknown answers, deferred decisions, source binding, continuation gates, and
 portable/team state. `e2e-hosted/ray-conversation.spec.ts` runs the complete saved
-answer → automatic advice loop, Stop/reload/defer, and correction confirmation.
+answer → automatic advice loop, Pause/reload/defer, cancellation and correction confirmation.
 `bun scripts/evaluate-conversation.ts` is an explicit live model evaluation using
 synthetic examples and company credentials. Source-span wording can vary; the
 acceptance criteria are correct attributes, preserved facts, and no unnecessary
@@ -122,6 +137,16 @@ already acknowledged that cloud fingerprint. It pulls and merges the missing
 history instead of repeatedly attempting a destructive overwrite. The server
 continues to reject missing advice; the protection was not weakened.
 
-Regression evidence includes stop/late-response/close/reopen without recording,
-retained earlier-machine actions, and recovery from an acknowledged-but-stripped
-team baseline. Synthetic fixtures only; no automatic repair of old reviewed facts.
+Regression evidence includes cancellation/late responses, hide/show without changing
+continuation, consented conversations and general memos continuing advice, selected
+question context, retained earlier-listing actions and recovery from an
+acknowledged-but-stripped team baseline. Synthetic fixtures only; no automatic
+repair of old reviewed facts.
+
+`bun scripts/evaluate-ray-advice.ts` explicitly calls live Ray with synthetic
+requirements, comparing the 0.7.1 policy/interface behavior with the restored
+integration. It includes a four-turn qualification conversation and a qualified
+candidate scenario. Inspect the complete replies for preserved facts, useful
+questions, handling of unknowns and grounded candidates; listing counts alone do
+not establish quality. It is intentionally separate from the mocked browser tests
+and does not promise identical wording or exhaustive engineering matching.

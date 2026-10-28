@@ -44,7 +44,7 @@ export function useWorkspace() {
   const activeVisitor = useRef(activeDraftId); activeVisitor.current = activeDraftId;
   const rayTick = useRef<() => void>(() => undefined);
   const rayRequests = useRef(new Map<string, AbortController>());
-  const [rayStates, setRayStates] = useState<Record<string, { busy: boolean; error?: string }>>({});
+  const [rayStates, setRayStates] = useState<Record<string, { busy: boolean; error?: string; canceled?: boolean }>>({});
   useUpdateGuard(Object.values(rayStates).some(s => s.busy));
   useEffect(() => {
     let alive = true;
@@ -133,12 +133,15 @@ export function useWorkspace() {
     if (!team.current) throw new Error('The team workspace is not ready.');
     await team.current.assignOwner(id, email, expectedVersion);
   }
-  function captureContext(id: string): CaptureContext {
+  function captureContext(id: string, answerQuestions: string[] = []): CaptureContext {
     const draft = drafts.find(d => d.id === id);
     if (!draft) return { version: 1, request: {}, questions: [] };
     const latest = [...(draft.ray ?? [])].sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
     const deferred = deferredQuestions(draft.rayQuestions);
-    return parseCaptureContext({ version: 1, request: draft.request, ...(latest ? { consultationId: latest.id } : {}), questions: latest?.questions.filter(q => !deferred.includes(q)) ?? [] });
+    // General memos/conversations carry known facts, without pretending to answer
+    // Ray. An explicit answer carries only the question shown when it was opened.
+    const questions = latest?.questions.filter(q => answerQuestions.includes(q) && !deferred.includes(q)) ?? [];
+    return parseCaptureContext({ version: 1, request: draft.request, ...(latest && questions.length ? { consultationId: latest.id } : {}), questions });
   }
   function pauseRay(id: string) {
     const session = raySessions.current.get(id);
@@ -151,7 +154,7 @@ export function useWorkspace() {
     controller?.abort();
     // Keep the request slot until its finally block exits; late replies cannot
     // save advice or restart an explicitly stopped session.
-    setRayStates(s => ({ ...s, [id]: { busy: false } }));
+    setRayStates(s => ({ ...s, [id]: { busy: false, canceled: true } }));
   }
   async function decideRayQuestion(id: string, consultationId: string, question: string, deferred: boolean) {
     await update(id, { type: 'rayQuestion', decision: { id: Crypto.randomUUID(), consultationId, question, deferred, createdAt: new Date().toISOString() } });
@@ -194,12 +197,12 @@ export function useWorkspace() {
       merge(updated); cloud.current?.wake(); team.current?.wake();
       setRayStates(s => ({ ...s, [id]: { busy: false } }));
       if (session.attempts >= MAX_AUTOMATIC_CONSULTATIONS) {
-        pauseRay(id); setRayStates(s => ({ ...s, [id]: { busy: false, error: 'Ray stopped after 12 updates. Choose Find machines when you need more help.' } }));
+        pauseRay(id); setRayStates(s => ({ ...s, [id]: { busy: false, error: 'Automatic updates paused after 12 replies. Choose Ask Ray when you need more help.' } }));
       }
     } catch (e) {
       if (repo.current === current && !controller.signal.aborted) {
         pauseRay(id);
-        setRayStates(s => ({ ...s, [id]: { busy: false, error: e instanceof Error && e.name !== 'TimeoutError' ? e.message : 'Ray took too long. Your visitor stays saved; choose Find machines to retry.' } }));
+        setRayStates(s => ({ ...s, [id]: { busy: false, error: e instanceof Error && e.name !== 'TimeoutError' ? e.message : 'Ray took too long. Your visitor stays saved; choose Ask Ray to retry.' } }));
       }
     } finally {
       if (rayRequests.current.get(id) === controller) rayRequests.current.delete(id);

@@ -5,7 +5,7 @@ import { manifestText } from '../src/team/merge';
 import { installIdentity } from './identity';
 const hash = (text: string) => createHash('sha256').update(text).digest('hex');
 
-test('a previously stripped team copy recovers cloud advice at the acknowledged fingerprint, keeps local advice and displays earlier candidates', async ({ page, context }) => {
+test('a previously stripped team copy recovers cloud advice and keeps earlier listings with their original assessment', async ({ page, context }) => {
   await installIdentity(context);
   const date = '2026-10-28T10:00:00.000Z';
   const base = reduceDraft(createDraft('recovery-visitor', 'request', 'CIBUSTEC', date), { type: 'edit', patch: { contact: { name: 'Synthetic Recovery' }, request: { product: 'juice', packaging: 'glass bottles', throughput: '20000', unit: 'bottles/h' } } }, date);
@@ -40,9 +40,11 @@ test('a previously stripped team copy recovers cloud advice at the acknowledged 
   await page.reload();
   await expect(page.getByText('Saved to team', { exact: true })).toBeVisible({ timeout: 35000 });
   expect(pushes).toBe(1); expect(pointer.rayIds.sort()).toEqual(['a'.repeat(64), 'b'.repeat(64)]);
+  await expect(page.getByText('Newer advice without a machine.', { exact: true })).toBeVisible();
+  await expect(page.getByText('Earlier synthetic machine', { exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Earlier advice (1)', exact: true }).click();
+  await expect(page.getByText('Earlier candidate needs technical confirmation.', { exact: true })).toBeVisible();
   await expect(page.getByText('Earlier synthetic machine', { exact: true })).toBeVisible();
-  await expect(page.getByText('Earlier candidate · not rechecked for the latest details', { exact: true })).toBeVisible();
-  await expect(page.getByText('No verified listing in this reply', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Save for visitor', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Saved for visitor ✓', exact: true })).toBeVisible();
   await page.setViewportSize({ width: 320, height: 800 });

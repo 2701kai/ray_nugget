@@ -150,7 +150,7 @@ test('the authenticated route accepts bounded conversation history beyond the ol
   expect(response.status).toBe(200); expect(calls).toBe(1); db.close();
 });
 
-test('matching intent rechecks prior candidates without selecting them, ignores unavailable references and stays within the chat bound', async () => {
+test('advisory policy preserves qualification, accepts legacy goals and stays within the chat bound', async () => {
   const bodies: any[] = [];
   const fetcher: typeof fetch = Object.assign(async (url: string | URL | Request, init?: RequestInit) => {
     const path = new URL(String(url)).pathname;
@@ -165,6 +165,10 @@ test('matching intent rechecks prior candidates without selecting them, ignores 
   const result = await rayTransport('https://ray.bevmaq.com', fetcher).consult(body);
   expect(result.machines.map(m => m.sku)).toEqual([machine.sku]);
   expect(bodies[0].visibleSkus).toEqual([machine.sku]); expect(bodies[0].skus).toEqual([]);
-  expect(bodies[0].message).toContain('Find machines'); expect(bodies[0].message.length).toBeLessThanOrEqual(2000);
+  expect(bodies[0].message).toContain('Ask at most 3 essential questions when technical fit is unclear; otherwise suggest up to 3 evidenced candidates.');
+  expect(bodies[0].message).not.toContain('Find machines for this buyer now');
+  expect(bodies[0].message).not.toContain('Ask ONE priority');
+  expect(bodies[0].message.length).toBeLessThanOrEqual(2000);
+  expect((await prepareRayInput(draft(), [], digest)).goal).toBeUndefined();
   expect(rayId(body)).not.toBe(rayId({ ...body, goal: undefined, previousSkus: undefined }));
 });

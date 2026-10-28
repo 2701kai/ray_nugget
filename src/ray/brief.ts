@@ -71,5 +71,5 @@ export async function prepareRayInput(draft: Draft, jobs: ProcessingJob[], diges
     chunk.push(safe);
   }
   for (const chunk of deferredChunks.filter(c => c.length)) history.push({ role: 'user', text: 'These details are unknown for now. Defer these questions, retain uncertainty, and help with what is known:\n' + chunk.join('\n') });
-  return { version: 2, goal: 'machines', previousSkus: [...new Set([...(draft.ray ?? [])].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).flatMap(a => a.machines.map(m => m.sku)))].slice(0, 12), history, sourceIds: draft.attachments.filter(a => a.kind === 'voice' && jobs.some(j => j.draftId === draft.id && j.attachmentId === a.id && j.state === 'complete')).map(a => a.id), draftId: draft.id, sourceFingerprint, window: Math.floor(now / 900000), brief, omitted, pending };
+  return { version: 2, previousSkus: [...new Set([...(draft.ray ?? [])].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).flatMap(a => a.machines.map(m => m.sku)))].slice(0, 12), history, sourceIds: draft.attachments.filter(a => a.kind === 'voice' && jobs.some(j => j.draftId === draft.id && j.attachmentId === a.id && j.state === 'complete')).map(a => a.id), draftId: draft.id, sourceFingerprint, window: Math.floor(now / 900000), brief, omitted, pending };
 }
