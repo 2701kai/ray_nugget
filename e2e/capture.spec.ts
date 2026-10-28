@@ -155,7 +155,7 @@ test('real local OCR produces reviewable fields without replacing an existing vi
   await page.setViewportSize({ width: 390, height: 844 });
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: test.info().outputPath('ocr-review-mobile.png'), animations: 'disabled' });
-  await page.getByRole('checkbox', { name: 'Use email', exact: true }).click();
+  await page.getByRole('checkbox', { name: 'Use email', exact: true }).setChecked(true);
   await page.getByRole('button', { name: 'Apply selected details', exact: true }).click();
   await page.getByRole('button', { name: 'Details & request', exact: true }).click();
   await expect(page.getByText('mara@example.test', { exact: true })).toBeVisible();
@@ -192,6 +192,7 @@ test('mobile RFQ review protects corrected and cleared fields while applying sel
   await page.getByRole('button', { name: 'Details & request', exact: true }).click();
   await page.getByRole('button', { name: 'Edit request', exact: true }).click();
   await page.getByLabel('Product to fill', { exact: true }).fill('Manually corrected juice');
+  await page.getByLabel('Container / packaging', { exact: true }).fill('Temporary packaging');
   await page.getByLabel('Container / packaging', { exact: true }).fill('');
   await page.getByRole('button', { name: 'Save request', exact: true }).click();
   await page.getByRole('button', { name: 'Conversation', exact: true }).click();
@@ -205,11 +206,11 @@ test('mobile RFQ review protects corrected and cleared fields while applying sel
   await expect(page.getByLabel('Product to fill', { exact: true })).toHaveValue('juice');
   await expect(page.getByRole('checkbox', { name: 'Use product', exact: true })).not.toBeChecked();
   await expect(page.getByRole('checkbox', { name: 'Use container / packaging', exact: true })).not.toBeChecked();
-  await expect(page.getByRole('checkbox', { name: 'Use throughput and unit', exact: true })).not.toBeChecked();
+  await expect(page.getByRole('checkbox', { name: 'Use throughput and unit', exact: true })).toBeChecked();
   await expect(page.getByText('Currently: Manually corrected juice', { exact: true })).toBeVisible();
   await page.getByLabel('Container / packaging', { exact: true }).fill('500 ml glass bottles');
   await expect(page.getByRole('checkbox', { name: 'Use container / packaging', exact: true })).toBeChecked();
-  await page.getByRole('checkbox', { name: 'Use throughput and unit', exact: true }).click();
+  await page.getByRole('checkbox', { name: 'Use throughput and unit', exact: true }).setChecked(true);
   await page.getByLabel('Required throughput', { exact: true }).scrollIntoViewIfNeeded();
   await expect(page.getByLabel('Required throughput', { exact: true })).toHaveValue('2400');
   await expect(page.getByRole('radio', { name: 'Bottles / hour', exact: true })).toBeChecked();

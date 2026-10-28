@@ -4,7 +4,7 @@ import { accessToken, auth } from '../session.web';
 
 export const gateway = process.env.EXPO_PUBLIC_PROCESSING_URL?.replace(/\/$/, '');
 type ResponseBody = { state: string; text?: string; error?: string; engine?: string; uploadUrl?: string };
-async function upload(session: string, bytes: Uint8Array, mimeType: string, signal: AbortSignal) {
+export async function upload(session: string, bytes: Uint8Array, mimeType: string, signal: AbortSignal) {
   const url = new URL(session);
   if (url.origin !== 'https://storage.googleapis.com') throw new Error('The upload destination is invalid.');
   const status = await fetch(session, { method: 'PUT', signal, headers: { 'Content-Range': `bytes */${bytes.length}` }, body: new Uint8Array() });

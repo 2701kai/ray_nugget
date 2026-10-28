@@ -17,13 +17,14 @@ import { Button, ErrorNotice, Eyebrow, Field, Sheet, Txt } from './src/ui/primit
 import { ContactForm, FollowupForm, RequestForm, SettingsForm } from './src/ui/Forms';
 import { CardCapture, VoiceCapture } from './src/ui/MediaCapture';
 import { DraftDetail } from './src/ui/DraftDetail';
+import { CloudCopies, CloudStatus } from './src/ui/CloudStatus';
 import { Conversation } from './src/ui/Conversation';
 import { VersionHint } from './src/ui/VersionHint';
 import { QuickNote } from './src/ui/QuickNote';
 import { AuthGate } from './src/ui/AuthGate';
 import { RestoreBackup, SaveBackup } from './src/ui/Backup';
 
-type Kind = CaptureKind | 'settings' | 'followup' | 'note' | 'conversation' | 'backup' | 'restore';
+type Kind = CaptureKind | 'settings' | 'followup' | 'note' | 'conversation' | 'backup' | 'restore' | 'cloud';
 type Panel = { kind: Kind; draftId?: string };
 
 function WorkspaceScreen() {
@@ -81,7 +82,7 @@ function WorkspaceScreen() {
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}><PeteMark size={32} />{width >= 380 && <Txt weight="extra" style={{ fontSize: 25, letterSpacing: -1 }}>pete.</Txt>}{desktop && <Txt style={{ color: colors.muted, fontSize: 16, letterSpacing: 1 }}>BY BEVMAQ</Txt>}</View>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
         {desktop && pwa.installable && <Button label="Install Pete" kind="quiet" icon="download" onPress={() => { void pwa.install(); }} />}
-        {desktop ? <Button label="Your details" icon="settings" kind="quiet" onPress={() => setPanel({ kind: 'settings' })} /> : <Pressable accessibilityRole="button" accessibilityLabel="Settings" onPress={() => setPanel({ kind: 'settings' })} style={{ minWidth: 76, minHeight: 56, alignItems: 'center', justifyContent: 'center' }}><Icon name="settings" /><Txt weight="bold" style={{ fontSize: 16, lineHeight: 24 }}>Settings</Txt></Pressable>}
+        {desktop ? <Button label="Your details" icon="settings" kind="quiet" onPress={() => setPanel({ kind: 'settings' })} /> : <Pressable accessibilityRole="button" accessibilityLabel="Settings" onPress={() => setPanel({ kind: 'settings' })} style={{ minWidth: 64, minHeight: 44, flexDirection: 'row', gap: 4, alignItems: 'center', justifyContent: 'center' }}><Icon name="settings" size={18} /><Txt weight="bold" style={{ fontSize: 16, lineHeight: 24 }}>Settings</Txt></Pressable>}
         <Button label="New visitor" icon="plus" kind="secondary" disabled={disabled} onPress={() => start('visitor', true)} style={{ paddingHorizontal: 12 }} />
       </View>
     </View>
@@ -93,7 +94,7 @@ function WorkspaceScreen() {
     {workspace.loading ? <View style={{ padding: 24, gap: 16 }}><View style={{ height: 70, backgroundColor: colors.sage, borderRadius: 16 }} /><View style={{ height: 220, backgroundColor: colors.sage, borderRadius: 20 }} /><Txt>Opening your conversations…</Txt></View> : <View style={{ flex: 1, flexDirection: 'row', minHeight: 0 }}>
       {desktop && <View style={styles.sidebar}><View style={{ padding: 20, gap: 14 }}><Eyebrow>YOUR CONVERSATIONS</Eyebrow><Field label="Find a draft" placeholder="Name, company…" value={query} onChangeText={setQuery} /></View><ScrollView contentContainerStyle={{ paddingHorizontal: 14, gap: 9, paddingBottom: 24 }}>{list.map(renderRow)}</ScrollView><View style={{ padding: 20, gap: 6 }}><Icon name="shield" size={20} color={colors.green} /><Txt style={{ fontSize: 16, color: colors.muted }}>{pwa.offlineReady ? 'Ready to reopen offline.' : 'Originals saved on this device.'}</Txt></View></View>}
       {library ? <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: desktop ? 42 : 20, gap: 25, maxWidth: 800, width: '100%', alignSelf: 'center' }}>
-        <View style={{ gap: 8 }}><Eyebrow>YOUR FIELD WORKSPACE</Eyebrow><Txt weight="bold" style={{ fontSize: 30, lineHeight: 38, letterSpacing: -1 }}>Every visitor. One conversation.</Txt><Txt style={{ color: colors.muted }}>Open a draft to pick up where you left off, or start with what you have.</Txt></View>
+        <View style={{ gap: 8 }}><Eyebrow>YOUR FIELD WORKSPACE</Eyebrow>{workspace.cloudEnabled && <Button label="Cloud saved visitors" icon="folder" kind="quiet" onPress={() => setPanel({ kind: 'cloud' })} style={{ alignSelf: 'flex-start' }} />}<Txt weight="bold" style={{ fontSize: 25, lineHeight: 32, letterSpacing: -1 }}>Every visitor. One conversation.</Txt><Txt style={{ color: colors.muted }}>Open a draft to pick up where you left off, or start with what you have.</Txt></View>
         <View style={{ gap: 10 }}>
           <Button label="Capture a voice note" icon="mic" disabled={disabled} onPress={() => start('voice', true)} />
           <Button label="Capture business card" icon="camera" kind="secondary" disabled={disabled} onPress={() => start('card', true)} />
@@ -108,11 +109,12 @@ function WorkspaceScreen() {
       </ScrollView> : <View style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
         <View style={styles.conversationHeader}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>{!desktop && <Pressable accessibilityRole="button" accessibilityLabel="Drafts" onPress={() => { setShowLibrary(true); setNotice(''); }} style={{ width: 32, height: 44, alignItems: 'flex-start', justifyContent: 'center' }}><Icon name="back" size={22} /></Pressable>}<View style={{ flex: 1, minWidth: 0, gap: 3 }}>{desktop && <Eyebrow>CURRENT VISITOR</Eyebrow>}<Txt weight="bold" accessibilityRole="header" style={{ fontSize: desktop ? 28 : 25, lineHeight: 34, letterSpacing: -0.8 }} numberOfLines={1}>{titleOf(draft!)}</Txt><Txt style={{ fontSize: 16, color: colors.muted }} numberOfLines={1}>{draft!.contact.company || 'Contact details to follow'}{draft!.event ? ` · ${draft!.event}` : ''}</Txt></View>{desktop && <Button label="Record conversation" icon="mic" kind="secondary" onPress={() => start('conversation')} />}</View>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}><Txt accessibilityLiveRegion="polite" style={{ fontSize: 16, color: colors.green }}>{notice || 'Saved locally'}</Txt>{!desktop && <Button label="Record conversation" icon="mic" kind="quiet" onPress={() => start('conversation')} style={{ paddingHorizontal: 0 }} />}</View>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}><CloudStatus draft={draft!} workspace={workspace} />{!desktop && <Button label="Record conversation" icon="mic" kind="quiet" onPress={() => start('conversation')} style={{ paddingHorizontal: 0 }} />}</View>
+          {!!notice && notice !== 'Saved on this device.' && <Txt accessibilityLiveRegion="polite" style={{ fontSize: 16, lineHeight: 22, color: colors.green }}>{notice}</Txt>}
           {!desktop && <View style={{ flexDirection: 'row', gap: 8 }}><Button label="Conversation" kind={section === 'conversation' ? 'primary' : 'quiet'} onPress={() => setSection('conversation')} style={{ flex: 1 }} /><Button label="Details & request" kind={section === 'details' ? 'primary' : 'quiet'} onPress={() => setSection('details')} style={{ flex: 1 }} /></View>}
         </View>
         <View style={{ flex: 1, flexDirection: 'row', minHeight: 0 }}>
-          <ScrollView style={{ flex: 1 }} keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: desktop ? 28 : 20, paddingBottom: 28 }}>
+          <ScrollView style={{ flex: 1 }} keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: desktop ? 28 : 14, paddingBottom: 28 }}>
             {desktop || section === 'conversation' ? <Conversation key={draft!.id} draft={draft!} workspace={workspace} /> : details}
           </ScrollView>
           {desktop && <ScrollView style={{ width: 320, flexGrow: 0, borderLeftWidth: 1, borderColor: colors.line, backgroundColor: colors.paper }} contentContainerStyle={{ padding: 22 }}>{details}</ScrollView>}
@@ -124,8 +126,8 @@ function WorkspaceScreen() {
       </View>}
     </View>}
     <View style={{ paddingVertical: 3, paddingHorizontal: 12, backgroundColor: colors.paper }}><VersionHint /></View>
-    {panel && <Sheet title={{ contact: 'A new connection.', request: 'What do they need?', card: 'Keep their card.', voice: 'Voice note.', conversation: 'Record the conversation.', note: 'A detail worth keeping.', settings: 'Your details.', followup: 'Keep the conversation going.', backup: 'Keep a backup.', restore: 'Recover a conversation.' }[panel.kind]} subtitle={panelDraft ? `For ${titleOf(panelDraft)}` : panel.kind === 'restore' ? 'Draft and original files, together' : 'Your identity and visit context'} locked={locked} onClose={() => { setPanel(null); setLocked(false); }}>
-      {panel.kind === 'restore' ? <RestoreBackup workspace={workspace} lock={setLocked} done={created => { setPanel(null); setLocked(false); setShowLibrary(false); setSection('conversation'); setNotice(created ? 'Restored draft and originals on this device.' : 'Opened the existing restored draft. Your edits are kept.'); }} /> : panel.kind === 'settings' ? <><SettingsForm workspace={workspace} done={done} /><Button label="Restore a backup" kind="secondary" onPress={() => setPanel({ kind: 'restore' })} />{pwa.installable && <Button label="Install Pete" icon="download" kind="secondary" onPress={() => { void pwa.install(); }} />}{pwa.offlineReady && <Txt style={{ fontSize: 16, color: colors.muted }}>Ready to reopen offline. On iPhone, use Safari’s Share menu → Add to Home Screen.</Txt>}</> : panelDraft ? <>
+    {panel && <Sheet title={{ contact: 'A new connection.', request: 'What do they need?', card: 'Keep their card.', voice: 'Voice note.', conversation: 'Record the conversation.', note: 'A detail worth keeping.', settings: 'Your details.', followup: 'Keep the conversation going.', backup: 'Keep a backup.', restore: 'Recover a conversation.', cloud: 'Company cloud.' }[panel.kind]} subtitle={panelDraft ? `For ${titleOf(panelDraft)}` : panel.kind === 'restore' ? 'Draft and original files, together' : 'Your identity and visit context'} locked={locked} onClose={() => { setPanel(null); setLocked(false); }}>
+      {panel.kind === 'cloud' ? <CloudCopies workspace={workspace} lock={setLocked} done={() => { done(); setShowLibrary(false); setSection('conversation'); }} /> : panel.kind === 'restore' ? <RestoreBackup workspace={workspace} lock={setLocked} done={created => { setPanel(null); setLocked(false); setShowLibrary(false); setSection('conversation'); setNotice(created ? 'Restored draft and originals on this device.' : 'Opened the existing restored draft. Your edits are kept.'); }} /> : panel.kind === 'settings' ? <><SettingsForm workspace={workspace} done={done} />{workspace.cloudEnabled && <Button label="Cloud saved visitors" icon="folder" kind="secondary" onPress={() => setPanel({ kind: 'cloud' })} />}<Button label="Restore a backup" kind="secondary" onPress={() => setPanel({ kind: 'restore' })} />{pwa.installable && <Button label="Install Pete" icon="download" kind="secondary" onPress={() => { void pwa.install(); }} />}{pwa.offlineReady && <Txt style={{ fontSize: 16, color: colors.muted }}>Ready to reopen offline. On iPhone, use Safari’s Share menu → Add to Home Screen.</Txt>}</> : panelDraft ? <>
         {panel.kind === 'backup' && <SaveBackup draft={panelDraft} workspace={workspace} lock={setLocked} />}
         {panel.kind === 'contact' && <ContactForm key={panelDraft.id} draft={panelDraft} workspace={workspace} done={done} />}
         {panel.kind === 'request' && <RequestForm key={panelDraft.id} draft={panelDraft} workspace={workspace} done={done} />}
@@ -139,7 +141,7 @@ function WorkspaceScreen() {
 }
 
 function CaptureAction({ label, accessibilityLabel, icon, primary, onPress }: { label: string; accessibilityLabel: string; icon: IconName; primary?: boolean; onPress: () => void }) {
-  return <Pressable accessibilityRole="button" accessibilityLabel={accessibilityLabel} onPress={onPress} style={({ pressed }) => ({ flex: primary ? 1.3 : 1, minHeight: 64, borderRadius: 15, backgroundColor: primary ? colors.green : colors.sage, alignItems: 'center', justifyContent: 'center', gap: 4, opacity: pressed ? 0.75 : 1 })}><Icon name={icon} color={primary ? colors.paper : colors.green} size={24} /><Txt weight="bold" style={{ fontSize: 16, color: primary ? colors.paper : colors.green }}>{label}</Txt></Pressable>;
+  return <Pressable accessibilityRole="button" accessibilityLabel={accessibilityLabel} onPress={onPress} style={({ pressed }) => ({ flex: primary ? 1.3 : 1, minHeight: 48, borderRadius: 9, backgroundColor: primary ? colors.green : colors.sage, alignItems: 'center', justifyContent: 'center', gap: 4, opacity: pressed ? 0.75 : 1 })}><Icon name={icon} color={primary ? colors.paper : colors.green} size={18} /><Txt weight="bold" style={{ fontSize: 16, lineHeight: 20, color: primary ? colors.paper : colors.green }}>{label}</Txt></Pressable>;
 }
 
 export default function App() {
@@ -150,11 +152,11 @@ export default function App() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.background },
-  topbar: { minHeight: 68, paddingHorizontal: 18, borderBottomWidth: 1, borderColor: colors.line, backgroundColor: colors.paper, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  topbar: { minHeight: 56, paddingHorizontal: 12, borderBottomWidth: 1, borderColor: colors.line, backgroundColor: colors.paper, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   sidebar: { width: 270, backgroundColor: colors.paper, borderRightWidth: 1, borderColor: colors.line },
   draftRow: { padding: 13, borderWidth: 1, borderColor: colors.line, borderRadius: 13, flexDirection: 'row', alignItems: 'center', gap: 10 },
   avatar: { width: 35, height: 40, backgroundColor: colors.pale, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
-  conversationHeader: { paddingHorizontal: 20, paddingTop: 14, paddingBottom: 12, backgroundColor: colors.paper, borderBottomWidth: 1, borderColor: colors.line, gap: 9 },
-  captureBar: { paddingHorizontal: 18, paddingTop: 9, paddingBottom: 12, backgroundColor: colors.paper, borderTopWidth: 1, borderColor: colors.line, gap: 7 },
+  conversationHeader: { paddingHorizontal: 14, paddingTop: 8, paddingBottom: 8, backgroundColor: colors.paper, borderBottomWidth: 1, borderColor: colors.line, gap: 4 },
+  captureBar: { paddingHorizontal: 12, paddingTop: 6, paddingBottom: 6, backgroundColor: colors.paper, borderTopWidth: 1, borderColor: colors.line, gap: 7 },
   banner: { paddingHorizontal: 18, paddingVertical: 8, backgroundColor: colors.sage },
 });

@@ -38,7 +38,7 @@ export function CardCapture({ draft, workspace, done, lock }: { draft: Draft; wo
     <Button label={busy ? 'Saving photo…' : 'Take a photo'} icon="camera" disabled={busy} onPress={() => pick(true)} />
     <Button label={busy ? 'Saving photo…' : 'Choose a card photo'} icon="card" disabled={busy} onPress={() => pick(false)} kind="secondary" />
     {Platform.OS === 'web' && <Txt style={{ fontSize: 16, color: colors.muted }}>On a phone, Take a photo requests the rear camera. Your browser may offer a camera or file chooser.</Txt>}
-    <Txt style={{ fontSize: 16, lineHeight: 24, color: colors.muted }}>The original photo stays on this device. Pete reads the text locally. In the company app, that text is processed by Google in the EU to fill the visitor’s details.</Txt>
+    <Txt style={{ fontSize: 16, lineHeight: 24, color: colors.muted }}>{workspace.cloudEnabled ? 'Photo saved here and backed up automatically to company cloud. Pete reads the text on this device; Google in the EU fills the details from it.' : 'The original photo stays on this device. Pete reads the text locally.'}</Txt>
   </>;
 }
 
@@ -109,9 +109,9 @@ export function VoiceCapture({ draft, workspace, done, lock, initialMode = 'memo
   return <>
     {phase === 'idle' && <Choice label="What are you recording?" value={mode} options={[{ value: 'memo', label: 'My own voice memo' }, { value: 'conversation', label: 'A conversation' }]} onChange={setMode} />}
     {mode === 'conversation' && phase === 'idle' && <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: consent }} aria-checked={consent} accessibilityLabel="The other person agreed to this recording" onPress={() => setConsent(!consent)} style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}><View style={{ width: 22, height: 22, borderWidth: 1, borderColor: colors.green, borderRadius: 5, backgroundColor: consent ? colors.green : colors.paper }}>{consent && <Icon name="check" size={20} color={colors.paper} />}</View><Txt style={{ flex: 1, fontSize: 16 }}>The other person agreed to this recording.</Txt></Pressable>}
-    <View style={{ alignItems: 'center', gap: 16, padding: 28, borderRadius: 20, backgroundColor: colors.pale }}>
-      <View style={{ width: 74, height: 74, borderRadius: 37, alignItems: 'center', justifyContent: 'center', backgroundColor: recording ? colors.green : colors.sage }}><Icon name={recording ? 'mic' : 'clock'} size={30} color={recording ? colors.paper : colors.green} /></View>
-      <Txt weight="semibold" style={{ fontSize: 36, lineHeight: 44, fontVariant: ['tabular-nums'], fontFamily: fonts.medium }}>{String(Math.floor(seconds / 60)).padStart(2, '0')}:{String(seconds % 60).padStart(2, '0')}</Txt>
+    <View style={{ alignItems: 'center', gap: 10, padding: 16, borderRadius: 12, backgroundColor: colors.pale }}>
+      <View style={{ width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: recording ? colors.green : colors.sage }}><Icon name={recording ? 'mic' : 'clock'} size={22} color={recording ? colors.paper : colors.green} /></View>
+      <Txt weight="semibold" style={{ fontSize: 30, lineHeight: 38, fontVariant: ['tabular-nums'], fontFamily: fonts.medium }}>{String(Math.floor(seconds / 60)).padStart(2, '0')}:{String(seconds % 60).padStart(2, '0')}</Txt>
       <Txt style={{ fontSize: 16, color: colors.muted }}>{phase === 'saving' ? 'Saving the original recording…' : phase === 'preparing' ? 'Preparing microphone…' : recording ? 'Recording · stop to save to this visitor' : phase === 'retry' ? 'Not saved yet · keep this page open' : mode === 'conversation' ? 'Up to 30 minutes. Stop and save when you are done.' : 'A short note is all you need. Up to 3 minutes.'}</Txt>
     </View>
     <ErrorNotice message={error} />
@@ -126,6 +126,6 @@ export function VoiceCapture({ draft, workspace, done, lock, initialMode = 'memo
       }} />
       {discarding ? <View style={{ gap: 10 }}><Txt>This recording has not been saved to the visitor. Discarding removes this unsaved copy.</Txt><Button label="Keep this recording" kind="secondary" onPress={() => setDiscarding(false)} /><Button label="Discard unsaved recording" kind="danger" disabled={downloading} onPress={() => { pendingUri.current = null; lock(false); done(); }} /></View> : <Button label="Discard recording…" kind="quiet" disabled={downloading} onPress={() => setDiscarding(true)} />}
     </>}
-    <Txt style={{ color: colors.muted, fontSize: 16, lineHeight: 24 }}>{workspace.supportedKinds.includes('voice') ? 'The original stays on this device. A copy goes to your company’s Google service in the EU. Pete transcribes it and fills clear details automatically; you can review or correct them anytime.' : 'The original stays on this device. Transcription is not configured on this platform.'} Leaving the app stops and attempts to save the recording; keep the app open until saving finishes.</Txt>
+    <Txt style={{ color: colors.muted, fontSize: 16, lineHeight: 24 }}>{workspace.cloudEnabled ? 'Saved here first, then backed up to company cloud. Google in the EU transcribes and fills the draft.' : workspace.supportedKinds.includes('voice') ? 'Saved on this device. Your company’s Google service in the EU transcribes and fills the draft.' : 'Saved on this device. Transcription is not configured on this platform.'} Keep Pete open until saving finishes.</Txt>
   </>;
 }

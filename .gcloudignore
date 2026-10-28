@@ -8,3 +8,7 @@
 !src/
 !src/domain/
 !src/domain/**
+!src/backup/
+!src/backup/archive.ts
+!src/processing/
+!src/processing/jobs.ts

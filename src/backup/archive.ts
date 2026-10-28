@@ -155,7 +155,7 @@ export function assertBackupSize(draft: Draft) {
   if (draft.attachments.length > 250 || draft.attachments.reduce((sum, a) => sum + a.bytes, 0) > MAX_BACKUP_BYTES - MAX_MANIFEST_BYTES - HEADER_BYTES) throw new Error('This draft is too large for a 128 MiB backup. Keep its originals on this device.');
 }
 
-export async function encodeBackup(snapshot: BackupSnapshot, digest: Digest): Promise<Uint8Array[]> {
+export function encodeManifest(snapshot: Pick<BackupSnapshot, 'draft' | 'jobs'>): Uint8Array {
   assertBackupSize(snapshot.draft);
   for (const job of snapshot.jobs) {
     if (job.draftId !== snapshot.draft.id || job.id !== `${snapshot.draft.id}/${job.attachmentId}` || !snapshot.draft.attachments.some(a => a.id === job.attachmentId && a.kind === job.kind) || (job.state === 'complete' && !job.result)) throw new Error('A source record is incomplete or belongs to another visitor. Backup was not created.');
@@ -164,6 +164,17 @@ export async function encodeBackup(snapshot: BackupSnapshot, digest: Digest): Pr
   const checked = manifest(portable);
   const metadata = encoder.encode(JSON.stringify({ ...portable, draft: checked.draft }));
   if (metadata.byteLength > MAX_MANIFEST_BYTES) throw new Error('This draft has too much source text for a single backup.');
+  return metadata;
+}
+
+export function decodeManifest(bytes: Uint8Array): Omit<BackupSnapshot, 'media'> {
+  if (bytes.byteLength > MAX_MANIFEST_BYTES) throw invalid();
+  return manifest(JSON.parse(decoder.decode(bytes)));
+}
+
+export async function encodeBackup(snapshot: BackupSnapshot, digest: Digest): Promise<Uint8Array[]> {
+  const metadata = encodeManifest(snapshot);
+  const checked = decodeManifest(metadata);
   const header = new Uint8Array(HEADER_BYTES);
   header.set(encoder.encode(MAGIC));
   new DataView(header.buffer).setUint32(MAGIC.length, metadata.byteLength);

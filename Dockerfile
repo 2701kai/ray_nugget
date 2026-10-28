@@ -9,6 +9,8 @@ ENV NODE_ENV=production
 COPY --from=dependencies /app/node_modules ./node_modules
 COPY server ./server
 COPY src/domain ./src/domain
+COPY src/backup/archive.ts ./src/backup/archive.ts
+COPY src/processing/jobs.ts ./src/processing/jobs.ts
 USER bun
 EXPOSE 8080
 CMD ["bun", "server/hosted.ts"]

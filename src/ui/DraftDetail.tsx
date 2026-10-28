@@ -7,6 +7,7 @@ import { mediaUri, releaseUri } from '../media/files';
 import { colors } from './theme';
 import { Button, Eyebrow, Txt } from './primitives';
 import { Icon } from './Icon';
+import { CloudStatus } from './CloudStatus';
 import { ProcessingStatus } from './ExtractionReview';
 
 function VoicePlayer({ uri }: { uri: string }) {
@@ -35,7 +36,7 @@ export function MediaItem({ draft, item, workspace }: { draft: Draft; item: Atta
     {item.kind === 'card' && !!uri && <Image source={{ uri }} accessibilityLabel={item.name} resizeMode="contain" style={{ width: '100%', height: 110, backgroundColor: colors.background, borderRadius: 8 }} />}
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}><Icon name={item.kind === 'card' ? 'card' : 'mic'} size={16} color={colors.green} /><Txt weight="semibold" style={{ fontSize: 16, flex: 1 }} numberOfLines={1}>{item.name}</Txt><Txt style={{ fontSize: 16, color: colors.muted }}>{Math.max(1, Math.round(item.bytes / 1024))} KB</Txt></View>
     {item.kind === 'voice' && !!uri && <VoicePlayer uri={uri} />}
-    <Txt style={{ fontSize: 16, color: error ? colors.danger : colors.muted, lineHeight: 24 }}>{error || 'Original saved on this device'}</Txt>
+    {(error || !workspace.cloudEnabled) && <Txt style={{ fontSize: 16, color: error ? colors.danger : colors.muted, lineHeight: 24 }}>{error || 'Original saved on this device'}</Txt>}
     <ProcessingStatus draft={draft} attachmentId={item.id} workspace={workspace} />
   </View>;
 }
@@ -49,7 +50,7 @@ export function DraftDetail({ draft, workspace, edit, intro, backup, exportRecor
   </View>;
   const gaps = rfqGaps(draft.request);
   return <View style={{ gap: 22 }}>
-    <View style={{ gap: 7 }}><View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}><Eyebrow>CURRENT VISITOR</Eyebrow><View style={{ flexDirection: 'row', gap: 4, alignItems: 'center' }}><Icon name="check" size={12} color={colors.green} /><Txt style={{ fontSize: 16, color: colors.green }}>Saved locally</Txt></View></View><Txt weight="bold" style={{ fontSize: 24, lineHeight: 32 }}>{titleOf(draft)}</Txt><Txt style={{ color: colors.muted, fontSize: 16 }}>{draft.contact.company || 'Company not added'}{draft.event ? ` · ${draft.event}` : ''}</Txt></View>
+    <View style={{ gap: 7 }}><View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}><Eyebrow>CURRENT VISITOR</Eyebrow></View><CloudStatus draft={draft} workspace={workspace} /><Txt weight="bold" style={{ fontSize: 22, lineHeight: 30 }}>{titleOf(draft)}</Txt><Txt style={{ color: colors.muted, fontSize: 16 }}>{draft.contact.company || 'Company not added'}{draft.event ? ` · ${draft.event}` : ''}</Txt></View>
     <View style={{ borderTopWidth: 1, borderColor: colors.line, paddingTop: 18, gap: 7 }}><View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}><Txt weight="bold" style={{ fontSize: 16 }}>Contact details</Txt><Button label="Edit contact" kind="quiet" onPress={() => edit('contact')} style={{ paddingHorizontal: 0, minHeight: 28 }} /></View><Txt style={{ color: draft.contact.phone ? colors.ink : colors.muted, fontSize: 16 }}>{draft.contact.phone || 'Mobile number not added'}</Txt><Txt style={{ color: draft.contact.email ? colors.ink : colors.muted, fontSize: 16 }}>{draft.contact.email || 'Email not added'}</Txt></View>
     <View style={{ borderTopWidth: 1, borderColor: colors.line, paddingTop: 18, gap: 10 }}><View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}><Txt weight="bold" style={{ fontSize: 16 }}>The request</Txt><Button label="Edit request" kind="quiet" onPress={() => edit('request')} style={{ paddingHorizontal: 0, minHeight: 28 }} /></View>{[
       ['Intent', draft.request.intent === 'unspecified' ? '' : draft.request.intent === 'buy' ? 'Buying' : 'Selling'], ['Product', draft.request.product], ['Container', draft.request.packaging], ['Throughput', draft.request.throughput ? `${draft.request.throughput} ${draft.request.unit}` : ''],
@@ -57,6 +58,6 @@ export function DraftDetail({ draft, workspace, edit, intro, backup, exportRecor
     <View style={{ backgroundColor: colors.pale, borderRadius: 8, padding: 10 }}><Txt style={{ fontSize: 16, lineHeight: 24, color: colors.green }}>{gaps.length ? `${gaps.length} filling requirement${gaps.length === 1 ? '' : 's'} still to ask` : 'Filling requirements captured'}</Txt></View>
     {!!draft.note && <Txt style={{ fontSize: 16, color: colors.muted }}>{draft.note}</Txt>}</View>
     {showMedia && draft.attachments.length > 0 && <View style={{ gap: 10 }}><Eyebrow>CAPTURED MATERIAL · {draft.attachments.length}</Eyebrow>{draft.attachments.map(item => <MediaItem key={item.id} draft={draft} item={item} workspace={workspace} />)}</View>}
-    <View style={{ gap: 8, borderTopWidth: 1, borderColor: colors.line, paddingTop: 18 }}><Button label="WhatsApp introduction" icon="phone" onPress={intro} /><Txt style={{ textAlign: 'center', fontSize: 16, color: colors.muted }}>Preview only. No messages are sent.</Txt><Button label="Save draft backup" icon="download" kind="secondary" onPress={backup} /><Button label="Export draft metadata" kind="quiet" onPress={exportRecord} /></View>
+    <View style={{ gap: 8, borderTopWidth: 1, borderColor: colors.line, paddingTop: 18 }}><Button label="WhatsApp introduction" icon="phone" onPress={intro} /><Txt style={{ textAlign: 'center', fontSize: 16, color: colors.muted }}>Preview only. No messages are sent.</Txt><Button label="Download backup file" icon="download" kind="secondary" onPress={backup} /><Button label="Export draft metadata" kind="quiet" onPress={exportRecord} /></View>
   </View>;
 }

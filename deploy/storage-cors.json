@@ -1,0 +1,8 @@
+[
+  {
+    "origin": ["https://bevmaq-platform.web.app", "https://bevmaq-platform.firebaseapp.com", "https://pete.bevmaq.com"],
+    "method": ["GET", "POST", "PUT", "HEAD"],
+    "responseHeader": ["Content-Type", "Content-Range", "Range", "Location"],
+    "maxAgeSeconds": 3600
+  }
+]

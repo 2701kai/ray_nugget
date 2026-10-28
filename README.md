@@ -14,7 +14,11 @@ Use **Continue with Google** and select your `@bevmaq.com` work account.
 Only verified company accounts can open the workspace or use transcription.
 Open the labelled **Settings** control and choose **Sign out** near the top,
 under your email. Mobile body text is 18 pixels, with labels and helper text at
-least 16 pixels, darker secondary text, and larger controls.
+least 16 pixels and darker secondary text. Controls use compact 44px targets;
+the capture dock uses 48px buttons. Padding and repeated help text are reduced.
+Web inputs keep the browser's editing buffer and focus during dictation and
+background updates. Manual forms save only edited fields, preserving details
+filled in the background while the form was open.
 A quiet version hint appears at the bottom of the workspace and sign-in screen;
 Settings shows the full build identifier. It identifies the page actually open,
 including a cached offline page, so an older tab cannot report a newer release.
@@ -36,11 +40,31 @@ Temporary audio is deleted on observed completion/failure, with a one-day bucket
 lifecycle as fallback. Transcripts and job metadata remain in Firestore; automatic
 retention of those records is not configured yet.
 
-Drafts, notes, photos, and original recordings still live **on this device**.
-There is no automatic cross-device draft sync or cloud backup. Localhost, the
-Firebase address, and the custom domain each have separate browser storage.
-Use a `.pete` draft backup to transfer originals and source text between them.
-Use the final custom domain consistently once HTTPS is ready.
+Drafts, notes, photos, and original recordings save **on this device first**.
+In the signed-in hosted app, Pete automatically backs up existing and new visitors
+to company GCP while open and online. A private EU bucket retains originals and
+versioned JSON details; the named Firestore database stores upload state and the
+latest confirmed copy. **Saved to company cloud** appears only after originals
+pass size/hash checks and the details are committed. Pending/offline/error states
+remain distinct. Reconnects resume saving; unchanged originals upload once.
+
+**Cloud saved visitors**, available from the draft list or Settings, opens a
+separate local copy under the same Google account, with original media and source
+text. It lists the 200 most recently saved copies. Existing local drafts remain
+intact; this is automatic backup, not simultaneous cross-device editing. Restored
+unfinished processing stays paused until explicitly retried. Localhost remains
+local-only, and each origin has separate local storage. A `.pete` file is an
+optional manual export through the phone's file picker, not the GCP save path.
+Use `pete.bevmaq.com` consistently for the hosted workspace.
+
+Cloud originals use `bevmaq-platform-pete-originals`, separate from the temporary
+speech bucket and its one-day deletion rule. No automatic expiry is configured
+for cloud copies; bucket soft deletion retains deleted objects for seven days.
+Uploads are capped at 1 GiB per account / 5 GiB total per UTC day, with existing
+per-original limits and a 128 MiB portable visitor limit. Large originals restore
+in authenticated 4 MiB parts with a final hash check. Company Google SSO and
+owner isolation apply to every cloud route. Runtime bucket access is limited to
+the Pete service account; exact browser origins are in `deploy/storage-cors.json`.
 Pilot transcription is capped at 40 new attempts per account and 200 total per UTC
 day, with 60 MiB per recording. Processing needs Pete open and connected to submit
 or collect results; Google's accepted operation can continue while Pete is closed.
@@ -218,8 +242,9 @@ of automatically submitting a duplicate. That case needs an operation check.
   and extraction version. Atomic leases fence concurrent calls; at most two model
   attempts per source and daily limits of 100 per user / 500 globally bound usage.
   Result/evidence metadata is stored in the existing `pete` Firestore database;
-  whole input text is not duplicated in the extraction cache. Photo originals stay
-  local. Removing `PETE_DETAILS_MODEL` disables hosted extraction; sources stay saved.
+  whole input text is not duplicated in the extraction cache. Photo OCR runs locally;
+  hosted cloud backup separately retains the original photo. Removing
+  `PETE_DETAILS_MODEL` disables hosted extraction; sources stay saved.
   Runtime identity needs `roles/aiplatform.user` as well as existing permissions.
 - The unauthenticated localhost preview keeps its conservative local contact/RFQ
   parser. Hosted interpretation does not run without company authentication. Older
@@ -238,8 +263,10 @@ OCR contact parsing suggests unambiguous email/international phone values and
 labelled names/company names; it does not infer missing country codes. Review the
 source text and correct OCR/transcription errors before applying details.
 
-Data belongs to this installation/browser origin. There is no automatic sync or
-cloud backup; clearing site data or uninstalling the app removes local records.
+Local data belongs to this installation/browser origin. Clearing site data or
+uninstalling removes those local records. In the hosted app, confirmed cloud
+copies remain recoverable through **Cloud saved visitors**; captures still waiting
+to upload are not protected by that backup. Keep Pete open until cloud saving finishes.
 Save backup files separately before moving devices or clearing storage. A move
 from localhost to `pete.bevmaq.com` uses a different browser database.
 The development preview needs the server to reopen; the production PWA can reopen
@@ -250,7 +277,8 @@ Physical-phone capture quality and long-conversation endurance still need field 
 
 ## Back up and recover a visitor
 
-In **Details & request**, choose **Save draft backup → Save backup file**. Keep the
+For an optional file export, in **Details & request**, choose
+**Download backup file → Save backup file**. Keep the
 `.pete` file in company file storage and check that the download/share completed.
 It includes customer details and original recordings and is not encrypted. Pete
 does not upload it automatically. This is a snapshot of one visitor; make a new
@@ -315,6 +343,12 @@ reconnection, source association after switching visitors, static-only caching,
 and the visible version remaining tied to the cached build.
 Unit tests cover draft rules, database migration, transaction rollback, queue leases,
 retry/recovery, manual-edit protection, and Google operation persistence/cleanup.
+Cloud tests require verified originals before acknowledging a save, isolate owners,
+and reject corrupted media or stale snapshots. Hosted browser tests replay a lost
+upload response, offline edits/reconnect, original reuse and cloud recovery. Input
+tests simulate composition and keyboard resize in Chromium/WebKit, including
+background filling while a manual form remains open. Actual iPhone dictation is
+still a physical-device check.
 
 The storage recovery regression also runs in WebKit against the production build:
 

@@ -18,7 +18,7 @@ export function Conversation({ draft, workspace }: { draft: Draft; workspace: Wo
       <Txt weight="bold" style={{ fontSize: 25, lineHeight: 33, letterSpacing: -0.8 }}>Their story starts here.</Txt>
       <Txt style={{ color: colors.muted, maxWidth: 380, lineHeight: 24 }}>Say who you met and what they need, or photograph their card. Pete fills the details here. No typing needed.</Txt>
     </View>}
-    {!!entries.length && !!rfqGaps(draft.request).length && <View style={{ backgroundColor: colors.pale, padding: 16, borderRadius: 12, gap: 6 }}><Txt weight="semibold">Add the rest by voice</Txt><Txt style={{ color: colors.muted }}>Tell Pete {rfqGaps(draft.request).map(gap => gap === 'Product' ? 'what they want to fill' : gap === 'Container' ? 'which container they need' : 'the throughput and unit').join(', ')}. Use Voice note below.</Txt></View>}
+    {!!entries.length && !!rfqGaps(draft.request).length && <Txt style={{ fontSize: 16, lineHeight: 23, color: colors.muted }}>Still to ask: {rfqGaps(draft.request).join(' · ')}. Add by voice.</Txt>}
     {entries.map(entry => <View key={entry.id} style={{ gap: 7 }}>
       <Eyebrow>{entry.kind === 'note' ? 'NOTE' : entry.item.kind === 'card' ? 'BUSINESS CARD' : entry.item.voiceMode === 'conversation' ? 'CONVERSATION' : 'VOICE NOTE'} · {new Date(entry.at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}</Eyebrow>
       {entry.kind === 'media' ? <>
@@ -26,6 +26,6 @@ export function Conversation({ draft, workspace }: { draft: Draft; workspace: Wo
         {!!workspace.jobs.find(job => job.attachmentId === entry.id && job.draftId === draft.id)?.result?.text && <View style={{ borderLeftWidth: 2, borderColor: colors.accent, paddingLeft: 12 }}><Txt numberOfLines={4} selectable style={{ fontSize: 16, lineHeight: 24, color: colors.muted }}>{workspace.jobs.find(job => job.attachmentId === entry.id && job.draftId === draft.id)?.result?.text}</Txt></View>}
       </> : <View style={{ padding: 17, borderRadius: 14, borderTopLeftRadius: 3, backgroundColor: colors.paper, borderWidth: 1, borderColor: colors.line }}><Txt selectable style={{ fontSize: 18, lineHeight: 24 }}>{entry.item.text}</Txt></View>}
     </View>)}
-    <View style={{ flexDirection: 'row', gap: 7, alignItems: 'center', paddingVertical: 12 }}><Icon name="check" size={13} color={colors.green} /><Txt style={{ fontSize: 16, color: colors.muted }}>Originals saved locally. You can keep capturing while processing runs.</Txt></View>
+    <View style={{ flexDirection: 'row', gap: 7, alignItems: 'center', paddingVertical: 12 }}><Icon name="check" size={13} color={colors.green} /><Txt style={{ fontSize: 16, color: colors.muted }}>{workspace.cloudEnabled ? 'Originals save here and upload automatically to company cloud.' : 'Originals saved locally. You can keep capturing while processing runs.'}</Txt></View>
   </View>;
 }

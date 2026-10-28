@@ -158,7 +158,7 @@ export function ProcessingStatus({ draft, attachmentId, workspace }: { draft: Dr
     <Txt accessibilityLiveRegion="polite" style={{ fontSize: 16, lineHeight: 24, color: job.state === 'failed' ? colors.danger : colors.green }}>{label}</Txt>
     {!!job.error && <Txt style={{ fontSize: 16, color: colors.muted }}>{job.error}</Txt>}
     <ErrorNotice message={error} />
-    {job.state === 'complete' && <Button label={job.reviewedAt !== undefined ? 'View source text' : conflicts ? 'Check suggested changes' : 'Review extracted text'} kind="secondary" onPress={() => setReviewing(true)} />}
+    {job.state === 'complete' && <Button label={job.reviewedAt !== undefined ? 'View source text' : conflicts ? 'Check suggested changes' : 'Review extracted text'} kind={conflicts ? 'secondary' : 'quiet'} style={{ alignSelf: 'flex-start' }} onPress={() => setReviewing(true)} />}
     {job.state === 'failed' && available && <Button label="Retry processing" kind="secondary" onPress={async () => { try { await workspace.retryJob(job.id); } catch { setError('Could not queue the retry.'); } }} />}
     {reviewing && <ExtractionReview key={job.id} job={job} draft={draft} workspace={workspace} close={() => setReviewing(false)} />}
   </View>;

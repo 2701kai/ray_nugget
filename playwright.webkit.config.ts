@@ -1,7 +1,7 @@
 import { defineConfig } from '@playwright/test';
 
 export default defineConfig({
-  testDir: './e2e', testMatch: 'storage-recovery.spec.ts',
+  testDir: './e2e', testMatch: ['storage-recovery.spec.ts', 'input-stability.spec.ts'],
   outputDir: './runs/webkit', workers: 1, timeout: 60000,
   expect: { timeout: 10000 }, reporter: 'list',
   use: {

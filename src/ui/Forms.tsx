@@ -22,37 +22,39 @@ function useSave() {
 }
 
 export function ContactForm({ draft, workspace, done }: { draft: Draft; workspace: Workspace; done: () => void }) {
-  const [contact, setContact] = useState({ ...draft.contact });
-  const [event, setEvent] = useState(draft.event);
-  const [revision] = useState(draft.revision);
+  const [edits, setEdits] = useState<Partial<Draft['contact']>>({});
+  const contact = { ...draft.contact, ...edits };
+  const setContact = (patch: Partial<Draft['contact']>) => setEdits(previous => ({ ...previous, ...patch }));
+  const [event, setEvent] = useState<string>();
   const save = useSave();
   return <>
-    <Field label="Full name" value={contact.name} onChangeText={name => setContact({ ...contact, name })} placeholder="Who did you meet?" autoFocus />
-    <Field label="Company" value={contact.company} onChangeText={company => setContact({ ...contact, company })} placeholder="Company or organisation" />
-    <Field label="Mobile number" value={contact.phone} onChangeText={phone => setContact({ ...contact, phone })} placeholder="+49 …" keyboardType="phone-pad" helper="Include the country code for a WhatsApp introduction." />
-    <Field label="Email" value={contact.email} onChangeText={email => setContact({ ...contact, email })} placeholder="name@company.com" keyboardType="email-address" autoCapitalize="none" />
-    <Field label="Visit or event" value={event} onChangeText={setEvent} placeholder="Where did you meet?" />
+    <Field label="Full name" value={contact.name} onChangeText={name => setContact({ name })} placeholder="Who did you meet?" autoFocus />
+    <Field label="Company" value={contact.company} onChangeText={company => setContact({ company })} placeholder="Company or organisation" />
+    <Field label="Mobile number" value={contact.phone} onChangeText={phone => setContact({ phone })} placeholder="+49 …" keyboardType="phone-pad" helper="Include the country code for a WhatsApp introduction." />
+    <Field label="Email" value={contact.email} onChangeText={email => setContact({ email })} placeholder="name@company.com" keyboardType="email-address" autoCapitalize="none" />
+    <Field label="Visit or event" value={event ?? draft.event} onChangeText={setEvent} placeholder="Where did you meet?" />
     <Txt style={{ color: colors.muted, fontSize: 16 }}>A name is a start. You can fill in the rest later.</Txt>
     <ErrorNotice message={save.error} />
-    <Button label={save.busy ? 'Saving…' : 'Save contact'} icon="check" disabled={save.busy} onPress={() => save.run(async () => { await workspace.update(draft.id, { type: 'edit', patch: { contact, event } }, revision); done(); })} />
+    <Button label={save.busy ? 'Saving…' : 'Save contact'} icon="check" disabled={save.busy} onPress={() => save.run(async () => { await workspace.update(draft.id, { type: 'edit', patch: { contact: edits, ...(event === undefined ? {} : { event }) } }); done(); })} />
   </>;
 }
 
 export function RequestForm({ draft, workspace, done }: { draft: Draft; workspace: Workspace; done: () => void }) {
-  const [request, setRequest] = useState({ ...draft.request });
-  const [note, setNote] = useState(draft.note);
-  const [revision] = useState(draft.revision);
+  const [edits, setEdits] = useState<Partial<Draft['request']>>({});
+  const request = { ...draft.request, ...edits };
+  const setRequest = (patch: Partial<Draft['request']>) => setEdits(previous => ({ ...previous, ...patch }));
+  const [note, setNote] = useState<string>();
   const save = useSave();
   return <>
-    <Choice label="This visitor wants to" value={request.intent} options={[{ value: 'buy', label: 'Buy a machine' }, { value: 'sell', label: 'Sell a machine' }, { value: 'unspecified', label: 'Not sure yet' }]} onChange={intent => setRequest({ ...request, intent })} />
-    <Field label="Product to fill" placeholder="e.g. fruit juice, water, beer" value={request.product} onChangeText={product => setRequest({ ...request, product })} />
-    <Field label="Container / packaging" placeholder="e.g. glass bottle, PET, carton" value={request.packaging} onChangeText={packaging => setRequest({ ...request, packaging })} />
-    <Field label="Required throughput" placeholder="e.g. 2400" keyboardType="decimal-pad" value={request.throughput} onChangeText={throughput => setRequest({ ...request, throughput })} />
-    <Choice label="Throughput unit" value={request.unit} options={[{ value: 'units/h', label: 'Units / hour' }, { value: 'bottles/h', label: 'Bottles / hour' }, { value: 'L/h', label: 'Litres / hour' }]} onChange={unit => setRequest({ ...request, unit })} />
-    <Field label="Conversation notes" value={note} onChangeText={setNote} multiline placeholder="Timing, budget, a machine they mentioned…" />
+    <Choice label="This visitor wants to" value={request.intent} options={[{ value: 'buy', label: 'Buy a machine' }, { value: 'sell', label: 'Sell a machine' }, { value: 'unspecified', label: 'Not sure yet' }]} onChange={intent => setRequest({ intent })} />
+    <Field label="Product to fill" placeholder="e.g. fruit juice, water, beer" value={request.product} onChangeText={product => setRequest({ product })} />
+    <Field label="Container / packaging" placeholder="e.g. glass bottle, PET, carton" value={request.packaging} onChangeText={packaging => setRequest({ packaging })} />
+    <Field label="Required throughput" placeholder="e.g. 2400" keyboardType="decimal-pad" value={request.throughput} onChangeText={throughput => setRequest({ throughput })} />
+    <Choice label="Throughput unit" value={request.unit} options={[{ value: 'units/h', label: 'Units / hour' }, { value: 'bottles/h', label: 'Bottles / hour' }, { value: 'L/h', label: 'Litres / hour' }]} onChange={unit => setRequest({ unit })} />
+    <Field label="Conversation notes" value={note ?? draft.note} onChangeText={setNote} multiline placeholder="Timing, budget, a machine they mentioned…" />
     <View style={{ backgroundColor: colors.pale, padding: 14, borderRadius: 10 }}><Txt style={{ fontSize: 16, color: colors.green }}>{rfqGaps(request).length ? `Still to ask: ${rfqGaps(request).join(' · ')}. You can save this draft now.` : 'The three filling requirements are captured. Machine matching is a later step.'}</Txt></View>
     <ErrorNotice message={save.error} />
-    <Button label={save.busy ? 'Saving…' : 'Save request'} icon="check" disabled={save.busy} onPress={() => save.run(async () => { await workspace.update(draft.id, { type: 'edit', patch: { request, note } }, revision); done(); })} />
+    <Button label={save.busy ? 'Saving…' : 'Save request'} icon="check" disabled={save.busy} onPress={() => save.run(async () => { await workspace.update(draft.id, { type: 'edit', patch: { request: { ...edits, ...(('throughput' in edits || 'unit' in edits) ? { throughput: request.throughput, unit: request.unit } : {}) }, ...(note === undefined ? {} : { note }) } }); done(); })} />
   </>;
 }
 
@@ -61,7 +63,7 @@ export function SettingsForm({ workspace, done }: { workspace: Workspace; done: 
   const save = useSave();
   return <>
     <ErrorNotice message={save.error} />
-    {!!sessionEmail() && <View style={{ gap: 10, paddingBottom: 18, borderBottomWidth: 1, borderColor: colors.line }}><Txt style={{ color: colors.muted }}>Signed in as</Txt><Txt weight="bold" selectable>{sessionEmail()}</Txt><Button label="Sign out" kind="secondary" disabled={save.busy} onPress={() => save.run(signOutSession)} /><Txt style={{ fontSize: 16, color: colors.muted }}>Your drafts stay on this device.</Txt></View>}
+    {!!sessionEmail() && <View style={{ gap: 10, paddingBottom: 18, borderBottomWidth: 1, borderColor: colors.line }}><Txt style={{ color: colors.muted }}>Signed in as</Txt><Txt weight="bold" selectable>{sessionEmail()}</Txt><Button label="Sign out" kind="secondary" disabled={save.busy} onPress={() => save.run(signOutSession)} /><Txt style={{ fontSize: 16, color: colors.muted }}>{workspace.cloudEnabled ? 'Captures save here first, then automatically to company GCP. Keep Pete open until cloud saving finishes.' : 'Your drafts stay on this device.'}</Txt></View>}
     <VersionHint full />
     <Txt style={{ color: colors.muted }}>These details appear in the introduction you prepare for a visitor.</Txt>
     <Field label="Your name" value={prefs.sender.name} onChangeText={name => setPrefs({ ...prefs, sender: { ...prefs.sender, name } })} placeholder="Your full name" />

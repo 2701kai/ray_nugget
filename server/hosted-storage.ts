@@ -7,10 +7,21 @@ export function hostedStorage(project: string, bucket: string) {
     const headers = new Headers(await (await auth.getClient()).getRequestHeaders(url));
     new Headers(init.headers).forEach((value, key) => headers.set(key, value));
     const response = await fetch(url, { ...init, headers, signal: AbortSignal.timeout(40_000) });
-    if (!response.ok && response.status !== 404) throw new Error(`Temporary storage request failed (${response.status}). Retry shortly.`);
+    if (!response.ok && ![404, 412].includes(response.status)) throw new Error(`Storage request failed (${response.status}). Retry shortly.`);
     return response;
   }
   return {
+    async read(name: string, range?: { start: number; end: number }) {
+      const response = await request(`https://storage.googleapis.com/storage/v1/b/${bucket}/o/${encodeURIComponent(name)}?alt=media`, range ? { headers: { Range: `bytes=${range.start}-${range.end}` } } : {});
+      if (response.status === 404) return undefined;
+      if (!response.ok) throw new Error('Stored original is unavailable.');
+      return response;
+    },
+    async put(name: string, bytes: Uint8Array) {
+      const query = new URLSearchParams({ uploadType: 'media', name, ifGenerationMatch: '0' });
+      const response = await request(`https://storage.googleapis.com/upload/storage/v1/b/${bucket}/o?${query}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: new Uint8Array(bytes) });
+      if (!response.ok && response.status !== 412) throw new Error('Cloud details could not be saved.');
+    },
     async begin(name: string, mimeType: string, bytes: number, origin: string) {
       const query = new URLSearchParams({ uploadType: 'resumable', name, ifGenerationMatch: '0' });
       const response = await request(`https://storage.googleapis.com/upload/storage/v1/b/${bucket}/o?${query}`, {

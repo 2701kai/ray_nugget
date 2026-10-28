@@ -43,7 +43,7 @@ test('offline backup transfers original photos and playable audio to a fresh dev
   await page.getByRole('button', { name: 'Stop and save recording', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Play recording', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Details & request', exact: true }).click();
-  await page.getByRole('button', { name: 'Save draft backup', exact: true }).click();
+  await page.getByRole('button', { name: 'Download backup file', exact: true }).click();
   const downloading = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Save backup file', exact: true }).click();
   const file = await downloading; expect(file.suggestedFilename()).toMatch(/\.pete$/);
