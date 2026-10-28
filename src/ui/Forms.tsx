@@ -64,7 +64,7 @@ export function SettingsForm({ workspace, done }: { workspace: Workspace; done: 
   return <>
     <ErrorNotice message={save.error} />
     {!!sessionEmail() && <View style={{ gap: 10, paddingBottom: 18, borderBottomWidth: 1, borderColor: colors.line }}><Txt style={{ color: colors.muted }}>Angemeldet als</Txt><Txt weight="bold" selectable>{sessionEmail()}</Txt><Button label="Abmelden" kind="secondary" disabled={save.busy} onPress={() => save.run(signOutSession)} /><Txt style={{ fontSize: 16, color: colors.muted }}>{workspace.cloudEnabled ? 'Pete sichert zuerst hier und dann automatisch in Company GCP. Lass Pete bis zum Abschluss geöffnet.' : 'Deine Besucher bleiben auf diesem Gerät verfügbar.'}</Txt></View>}
-    <VersionHint full />
+    <VersionHint />
     <Txt style={{ color: colors.muted }}>Diese Angaben verwendet Pete für Deine Kontaktvorlage.</Txt>
     <Field label="Dein Name" value={prefs.sender.name} onChangeText={name => setPrefs({ ...prefs, sender: { ...prefs.sender, name } })} placeholder="Dein Name" />
     <Field label="Deine Firma" value={prefs.sender.company} onChangeText={company => setPrefs({ ...prefs, sender: { ...prefs.sender, company } })} />
