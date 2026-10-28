@@ -36,11 +36,13 @@ conversation, with the visitor and capture time visible. Reading or copying text
 does not approve extracted changes or edit the draft. A saved transcript remains
 readable even if later extraction is paused. Field review stays separate.
 
-**Ask Ray** uses the current visitor's captured need to offer equipment advice,
-useful questions and up to three catalogue-backed machine candidates. **Answer by
+**Find machines** uses the current visitor's captured need to offer equipment advice,
+useful questions and up to three verified catalogue references. These can include
+alternatives Ray rules out; the assessment explains fit and gaps. **Answer by
 voice** adds details through the same recorder. While **Ray assistance** is on,
-each saved answer updates the advice when processing finishes. Pause stops further
-consultations; a reload starts paused. Advice and machine choices save with that visitor, including company
+each saved answer updates the advice when processing finishes. **Stop Ray** cancels
+the browser request and further consultation; **Close Ray** also collapses the card.
+Saved work stays intact, and a reload starts stopped. Advice and machine choices save with that visitor, including company
 cloud copies and backups. Changed requirements mark earlier advice for refresh;
 suggestions never replace customer facts. Saved advice remains readable offline.
 New consultations require a connection, and failures never block capture or saving.
@@ -505,7 +507,7 @@ The EU processing endpoint follows Google's
 
 ### Release numbers
 
-Pete 0.8.0 is a pilot feature release. During the pilot, 0.x.0 marks a substantial
+Pete 0.8.1 is a pilot fix release following the 0.8.0 conversation increment. During the pilot, 0.x.0 marks a substantial
 feature increment and 0.x.y a fix. The 1.0.0 milestone means the capture, recovery,
 sharing, and assisted conversation contracts are stable for everyday use and
 validated on the team's actual devices. It does not require a CRM integration or

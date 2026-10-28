@@ -149,3 +149,22 @@ test('the authenticated route accepts bounded conversation history beyond the ol
   const response = await handler(new Request(`https://pete.example.test/api/ray/${rayId(body)}`, { method: 'POST', headers: { Origin: 'https://pete.example.test', Authorization: 'Bearer synthetic' }, body: JSON.stringify(body) }));
   expect(response.status).toBe(200); expect(calls).toBe(1); db.close();
 });
+
+test('matching intent rechecks prior candidates without selecting them, ignores unavailable references and stays within the chat bound', async () => {
+  const bodies: any[] = [];
+  const fetcher: typeof fetch = Object.assign(async (url: string | URL | Request, init?: RequestInit) => {
+    const path = new URL(String(url)).pathname;
+    if (path.endsWith('/GONE')) return Response.json({}, { status: 404 });
+    if (path === '/api/chat') {
+      bodies.push(JSON.parse(String(init?.body)));
+      return Response.json({ language: 'en', text: 'A candidate with technical details to verify.', evidence: [{ sku: machine.sku }], brief: { openQuestions: [] } });
+    }
+    return Response.json({ ...machine, available: true });
+  }, { preconnect() {} });
+  const body: RayInput = { ...input(), version: 2, history: [], sourceIds: [], goal: 'machines', previousSkus: [machine.sku, 'GONE'], brief: 'x'.repeat(1450), omitted: 3 };
+  const result = await rayTransport('https://ray.bevmaq.com', fetcher).consult(body);
+  expect(result.machines.map(m => m.sku)).toEqual([machine.sku]);
+  expect(bodies[0].visibleSkus).toEqual([machine.sku]); expect(bodies[0].skus).toEqual([]);
+  expect(bodies[0].message).toContain('Find machines'); expect(bodies[0].message.length).toBeLessThanOrEqual(2000);
+  expect(rayId(body)).not.toBe(rayId({ ...body, goal: undefined, previousSkus: undefined }));
+});

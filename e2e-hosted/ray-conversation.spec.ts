@@ -35,7 +35,7 @@ test('one activation continues saved answers, separates details, defers question
   });
   await page.goto('/'); await page.getByRole('button', { name: 'New visitor', exact: true }).click();
   await record(page); await expect(page.getByText('Details added automatically', { exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Ask Ray', exact: true }).click();
+  await page.getByRole('button', { name: 'Find machines', exact: true }).click();
   await expect(page.getByText('Which filling process?', { exact: true })).toBeVisible();
   await expect(page.getByText('Does the juice contain particles?', { exact: true })).toHaveCount(0);
   await record(page, true);
@@ -48,17 +48,17 @@ test('one activation continues saved answers, separates details, defers question
   await page.getByRole('button', { name: 'Not known yet', exact: true }).click();
   await expect.poll(() => calls, { timeout: 25000 }).toBe(3);
   expect(inputs[2].history.at(-1).text).toContain('unknown for now');
-  await page.getByRole('button', { name: 'Pause Ray', exact: true }).click();
+  await page.getByRole('button', { name: 'Stop Ray', exact: true }).click();
   await record(page, true);
   await expect.poll(async () => (await drafts(page))[0].request.timing).toBe('next spring');
   // Advance beyond the normal scheduler interval: Pause must prevent a request.
   await page.waitForTimeout(11000); expect(calls).toBe(3);
-  await page.getByRole('button', { name: 'Resume Ray', exact: true }).click();
+  await page.getByRole('button', { name: 'Find machines', exact: true }).click();
   await expect.poll(() => calls).toBe(4);
   await page.screenshot({ path: test.info().outputPath('ray-assisted-390.png'), animations: 'disabled' });
   await page.setViewportSize({ width: 320, height: 844 }); expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: test.info().outputPath('ray-assisted-320.png'), animations: 'disabled' });
-  await page.reload(); await expect(page.getByRole('button', { name: 'Resume Ray', exact: true })).toBeVisible();
+  await page.reload(); await expect(page.getByRole('button', { name: 'Find machines', exact: true })).toBeVisible();
   expect((await drafts(page))[0].rayQuestions[0].deferred).toBe(true);
   expect(calls).toBe(4);
 });
@@ -74,7 +74,7 @@ test('Ray waits for a genuine correction and continues automatically after one c
   });
   await page.goto('/'); await page.getByRole('button', { name: 'New visitor', exact: true }).click();
   await record(page); await expect(page.getByText('Details added automatically', { exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Ask Ray', exact: true }).click();
+  await page.getByRole('button', { name: 'Find machines', exact: true }).click();
   await expect(page.getByText('Which filling process?', { exact: true })).toBeVisible();
   await record(page, true); await expect(page.getByRole('button', { name: 'Check this detail', exact: true })).toBeVisible();
   await page.waitForTimeout(11000); expect(calls).toBe(1);
@@ -83,4 +83,29 @@ test('Ray waits for a genuine correction and continues automatically after one c
   await page.getByRole('button', { name: 'Use this change', exact: true }).click();
   await expect.poll(() => calls, { timeout: 20000 }).toBe(2);
   expect((await drafts(page))[0].request.throughput).toBe('22000');
+});
+
+test('Stop cancels a pending result; Close leaves saved work and microphone off, reopening does not restart Ray', async ({ page }) => {
+  let calls = 0; let pending: import('@playwright/test').Route | undefined;
+  await page.route('**/api/ray/*', route => { calls++; pending = route; });
+  await page.goto('/'); await page.getByRole('button', { name: 'New visitor', exact: true }).click();
+  await page.getByRole('button', { name: 'Add note', exact: true }).click();
+  await page.getByLabel('Note', { exact: true }).fill('Synthetic visitor needs juice in glass bottles, 20000 bottles/h.');
+  await page.getByRole('button', { name: 'Save note', exact: true }).click();
+  await page.getByRole('button', { name: 'Find machines', exact: true }).click();
+  await expect(page.getByText(/^Checking machines for /)).toBeVisible();
+  await expect(page.getByText('Microphone off · Ray uses this visitor’s saved details.', { exact: true })).toBeVisible();
+  await expect.poll(() => !!pending).toBe(true);
+  await page.getByRole('button', { name: 'Stop Ray', exact: true }).click();
+  await expect(page.getByText('Ray is stopped', { exact: true })).toBeVisible();
+  const body = pending!.request().postDataJSON();
+  await pending!.fulfill({ json: { state: 'complete', result: { ...body, id: createHash('sha256').update(pending!.request().postData()!).digest('hex'), createdAt: new Date().toISOString(), text: 'Late result must not be saved.', questions: [], machines: [], selectedSkus: [] } } }).catch(() => {});
+  await page.getByRole('button', { name: 'Close Ray', exact: true }).click();
+  await expect(page.getByText('Ray closed · saved advice kept', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Open Ray', exact: true }).click();
+  await expect(page.getByText('Ray is stopped', { exact: true })).toBeVisible();
+  await page.waitForTimeout(4000); expect(calls).toBe(1);
+  expect((await drafts(page))[0].ray ?? []).toHaveLength(0);
+  expect((await drafts(page))[0].entries).toHaveLength(1);
+  await expect(page.getByTestId('recording-dock')).toHaveCount(0);
 });

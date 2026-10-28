@@ -145,6 +145,14 @@ export function useWorkspace() {
     if (session) session.enabled = false;
     setRayEnabled(s => ({ ...s, [id]: false }));
   }
+  function stopRay(id: string) {
+    pauseRay(id);
+    const controller = rayRequests.current.get(id);
+    controller?.abort();
+    // Keep the request slot until its finally block exits; late replies cannot
+    // save advice or restart an explicitly stopped session.
+    setRayStates(s => ({ ...s, [id]: { busy: false } }));
+  }
   async function decideRayQuestion(id: string, consultationId: string, question: string, deferred: boolean) {
     await update(id, { type: 'rayQuestion', decision: { id: Crypto.randomUUID(), consultationId, question, deferred, createdAt: new Date().toISOString() } });
   }
@@ -160,6 +168,7 @@ export function useWorkspace() {
     if (automatic && (activeVisitor.current !== id || editingTeam.current || typeof navigator !== 'undefined' && !navigator.onLine || typeof document !== 'undefined' && document.visibilityState === 'hidden')) return;
     const controller = new AbortController(); rayRequests.current.set(id, controller);
     let started = false;
+    if (!automatic) setRayStates(s => ({ ...s, [id]: { busy: true } }));
     try {
       const [records, tasks] = await Promise.all([current.list(), current.jobs()]);
       if (repo.current !== current || controller.signal.aborted) return;
@@ -178,23 +187,23 @@ export function useWorkspace() {
       started = true; setRayStates(s => ({ ...s, [id]: { busy: true } }));
       const advice = await requestRay(input, controller.signal);
       if (repo.current !== current || controller.signal.aborted) return;
-      // Save on the originating visitor even after navigation or Pause. The
+      // Save on the originating visitor even after navigation. Explicit Stop aborts before this point. The
       // source fingerprint prevents an old response becoming current advice.
       const updated = await current.update(id, { type: 'rayAdvice', advice });
       if (repo.current !== current) return;
       merge(updated); cloud.current?.wake(); team.current?.wake();
       setRayStates(s => ({ ...s, [id]: { busy: false } }));
       if (session.attempts >= MAX_AUTOMATIC_CONSULTATIONS) {
-        pauseRay(id); setRayStates(s => ({ ...s, [id]: { busy: false, error: 'Ray assistance is paused after 12 updates. Resume when you need more help.' } }));
+        pauseRay(id); setRayStates(s => ({ ...s, [id]: { busy: false, error: 'Ray stopped after 12 updates. Choose Find machines when you need more help.' } }));
       }
     } catch (e) {
       if (repo.current === current && !controller.signal.aborted) {
         pauseRay(id);
-        setRayStates(s => ({ ...s, [id]: { busy: false, error: e instanceof Error && e.name !== 'TimeoutError' ? e.message : 'Ray took too long. Your visitor stays saved; resume to retry.' } }));
+        setRayStates(s => ({ ...s, [id]: { busy: false, error: e instanceof Error && e.name !== 'TimeoutError' ? e.message : 'Ray took too long. Your visitor stays saved; choose Find machines to retry.' } }));
       }
     } finally {
       if (rayRequests.current.get(id) === controller) rayRequests.current.delete(id);
-      if (started && controller.signal.aborted && repo.current === current) setRayStates(s => ({ ...s, [id]: { busy: false } }));
+      if (repo.current === current && (!started || controller.signal.aborted)) setRayStates(s => ({ ...s, [id]: { ...s[id], busy: false } }));
     }
   }
   // Assistance belongs to this open app session and the selected visitor. A
@@ -220,6 +229,6 @@ export function useWorkspace() {
     return () => { clearInterval(timer); if (typeof window !== 'undefined') window.removeEventListener('online', wake); if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', wake); };
   }, []);
 
-  return { rayAvailable, rayStates, rayEnabled, pauseRay, captureContext, decideRayQuestion, askRay, assignLeadOwner, holdTeamUpdates: (held: boolean) => { editingTeam.current = held; if (!held) { rayObserved.current.clear(); team.current?.wake(); } }, cancelTeamOpen: () => team.current?.cancelOpen(), teamView, scope, selectScope, openTeam, shareTeam, resolveTeam: (id: string, choices: Record<string, 'local' | 'team'>) => team.current?.resolve(id, choices), drafts, activeDraftId, activateDraft, jobs, supportedKinds, preferences, loading, error, processingError, cloudEnabled, cloudStates, cloudCopies, restoreCloud, retryCloud: () => cloud.current?.wake(), retry: () => setGeneration(g => g + 1), create, update, attach, savePreferences, getMedia, retryJob, reviewJob, backup, restore };
+  return { rayAvailable, rayStates, rayEnabled, pauseRay, stopRay, captureContext, decideRayQuestion, askRay, assignLeadOwner, holdTeamUpdates: (held: boolean) => { editingTeam.current = held; if (!held) { rayObserved.current.clear(); team.current?.wake(); } }, cancelTeamOpen: () => team.current?.cancelOpen(), teamView, scope, selectScope, openTeam, shareTeam, resolveTeam: (id: string, choices: Record<string, 'local' | 'team'>) => team.current?.resolve(id, choices), drafts, activeDraftId, activateDraft, jobs, supportedKinds, preferences, loading, error, processingError, cloudEnabled, cloudStates, cloudCopies, restoreCloud, retryCloud: () => cloud.current?.wake(), retry: () => setGeneration(g => g + 1), create, update, attach, savePreferences, getMedia, retryJob, reviewJob, backup, restore };
 }
 export type Workspace = ReturnType<typeof useWorkspace>;

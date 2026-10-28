@@ -42,7 +42,7 @@ export function CardCapture({ draft, workspace, done, lock }: { draft: Draft; wo
   </>;
 }
 
-export function VoiceCapture({ draft, workspace, done, lock, initialMode = 'memo', autoStart = false, compact = false, onClose }: { draft: Draft; workspace: Workspace; done: (outcome?: 'discarded' | 'canceled') => void; lock: (locked: boolean) => void; initialMode?: 'memo' | 'conversation'; autoStart?: boolean; compact?: boolean; onClose?: () => void }) {
+export function VoiceCapture({ draft, workspace, done, lock, initialMode = 'memo', autoStart = false, compact = false, rayAnswer = false, onClose }: { draft: Draft; workspace: Workspace; done: (outcome?: 'discarded' | 'canceled') => void; lock: (locked: boolean) => void; initialMode?: 'memo' | 'conversation'; autoStart?: boolean; compact?: boolean; rayAnswer?: boolean; onClose?: () => void }) {
   const [mode, setMode] = useState<'memo' | 'conversation'>(initialMode);
   const [consent, setConsent] = useState(false);
   type Phase = 'idle' | 'preparing' | 'recording' | 'saving' | 'retry' | 'stopping' | 'discarding';
@@ -170,10 +170,11 @@ export function VoiceCapture({ draft, workspace, done, lock, initialMode = 'memo
   const timer = `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
   return <>
     {compact && <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-      <View style={{ flex: 1, minWidth: 0 }}><Txt weight="bold" style={{ fontSize: 16, lineHeight: 22 }}>{mode === 'memo' ? 'Voice note' : 'Conversation recording'}</Txt><Txt numberOfLines={1} style={{ fontSize: 16, lineHeight: 22, color: colors.muted }}>For {titleOf(draft)}</Txt></View>
+      <View style={{ flex: 1, minWidth: 0 }}><Txt weight="bold" style={{ fontSize: 16, lineHeight: 22 }}>{rayAnswer ? 'Record an answer for Ray' : mode === 'memo' ? 'Voice note' : 'Conversation recording'}</Txt><Txt numberOfLines={1} style={{ fontSize: 16, lineHeight: 22, color: colors.muted }}>For {titleOf(draft)}</Txt></View>
       <Txt style={{ fontSize: 22, lineHeight: 30, fontVariant: ['tabular-nums'], fontFamily: fonts.semibold }}>{timer}</Txt>
       <Button label="" accessibilityLabel="Close" icon="close" kind="quiet" onPress={() => { if (phase === 'idle') onClose?.(); }} disabled={phase !== 'idle'} style={{ width: 44, paddingHorizontal: 0 }} />
     </View>}
+    {rayAnswer && <Txt style={{ fontSize: 14, lineHeight: 20, color: colors.muted }}>Saved audio adds to {titleOf(draft)}’s request{workspace.rayEnabled[draft.id] ? ' and updates the machine search.' : '. Ray is stopped; choose Find machines afterward.'}</Txt>}
     {!compact && phase === 'idle' && <Choice label="What are you recording?" value={mode} options={[{ value: 'memo', label: 'My own voice memo' }, { value: 'conversation', label: 'Conversation' }]} onChange={setMode} />}
     {mode === 'conversation' && phase === 'idle' && <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: consent }} aria-checked={consent} accessibilityLabel="The other person agreed to this recording" onPress={() => setConsent(!consent)} style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}><View style={{ width: 22, height: 22, borderWidth: 1, borderColor: colors.green, borderRadius: 5, backgroundColor: consent ? colors.green : colors.paper }}>{consent && <Icon name="check" size={20} color={colors.paper} />}</View><Txt style={{ flex: 1, fontSize: 16 }}>The other person agreed to this recording.</Txt></Pressable>}
     {compact ? <View style={{ flexDirection: 'row', gap: 7, alignItems: 'center' }}><View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: recording ? colors.danger : colors.muted }} /><Txt accessibilityLiveRegion="polite" style={{ fontSize: 16, lineHeight: 22, color: colors.muted, flex: 1 }}>{recording ? `Recording · ${limit / 60} min maximum` : feedback}</Txt></View> : <View style={{ alignItems: 'center', gap: 10, padding: 16, borderRadius: 12, backgroundColor: colors.pale }}>
