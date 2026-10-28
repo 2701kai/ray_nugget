@@ -20,22 +20,22 @@ export function startTeamSync(repo: DraftRepository, changed: (view: TeamView) =
   function emit() { if (!controller.signal.aborted) changed({ ...view, states: { ...view.states }, links: { ...view.links } }); }
   function status(id: string, state: TeamStatus) { view.states[id] = state; emit(); }
   async function api(path: string, init: RequestInit = {}) {
-    if (controller.signal.aborted || auth?.currentUser?.uid !== uid) throw new Error('Dein angemeldetes Konto hat sich geändert.');
+    if (controller.signal.aborted || auth?.currentUser?.uid !== uid) throw new Error('Your signed-in account has changed.');
     const response = await fetch(`${gateway}/teams${path}`, { ...init, signal: AbortSignal.any([controller.signal, AbortSignal.timeout(120_000), ...(init.signal ? [init.signal] : [])]), headers: { ...init.headers, Authorization: `Bearer ${await accessToken()}` } });
     if (!response.ok && response.status !== 404) {
       const data = await response.json().catch(() => ({}));
-      throw new Error(data.error || 'Der Team-Bereich ist gerade nicht erreichbar. Deine Erfassung bleibt hier gespeichert.');
+      throw new Error(data.error || 'The team workspace is unavailable right now. Your capture stays saved here.');
     }
     return response;
   }
   const post = async (path: string, body: unknown = {}) => (await api(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })).json();
   async function metadata(teamId: string, copy: TeamCopy, signal?: AbortSignal) {
     const response = await api(`/${teamId}/drafts/${copy.id}/manifest`, { signal });
-    if (!response.ok) throw new Error('Dieser Team-Besucher ist nicht verfügbar.');
+    if (!response.ok) throw new Error('This shared visitor is unavailable.');
     const bytes = new Uint8Array(await response.arrayBuffer());
-    if (await digest(bytes) !== copy.fingerprint) throw new Error('Der Team-Stand hat sich geändert. Pete versucht es erneut.');
+    if (await digest(bytes) !== copy.fingerprint) throw new Error('The shared version has changed. Pete will retry.');
     const snapshot = decodeManifest(bytes);
-    if (snapshot.draft.id !== copy.draftId || await digest(encoder.encode(snapshot.draft.id)) !== copy.id) throw new Error('Die Besucher-Zuordnung stimmt nicht.');
+    if (snapshot.draft.id !== copy.draftId || await digest(encoder.encode(snapshot.draft.id)) !== copy.id) throw new Error('The visitor association does not match.');
     return { snapshot, text: new TextDecoder().decode(bytes) };
   }
   async function originals(teamId: string, snapshot: Pick<BackupSnapshot, 'draft' | 'jobs'>, signal?: AbortSignal) {
@@ -45,12 +45,12 @@ export function startTeamSync(repo: DraftRepository, changed: (view: TeamView) =
       const bytes = new Uint8Array(a.bytes);
       for (let offset = 0; offset < a.bytes; offset += 4 * 1024 * 1024) {
         const response = await api(`/${teamId}/media/${a.sha256}?offset=${offset}`, { signal });
-        if (!response.ok) throw new Error('Das Original ist noch nicht verfügbar.');
+        if (!response.ok) throw new Error('The original file is not available yet.');
         const chunk = new Uint8Array(await response.arrayBuffer());
-        if (chunk.length !== Math.min(4 * 1024 * 1024, a.bytes - offset)) throw new Error('Der Download wurde unterbrochen. Öffne den Besucher erneut.');
+        if (chunk.length !== Math.min(4 * 1024 * 1024, a.bytes - offset)) throw new Error('The download was interrupted. Open the visitor again.');
         bytes.set(chunk, offset);
       }
-      if (await digest(bytes) !== a.sha256) throw new Error('Ein Original ist unvollständig. Bitte erneut laden.');
+      if (await digest(bytes) !== a.sha256) throw new Error('An original file is incomplete. Please download it again.');
       result.push({ attachmentId: a.id, bytes });
     }
     return result;
@@ -61,7 +61,7 @@ export function startTeamSync(repo: DraftRepository, changed: (view: TeamView) =
       const session = await post(`${path}/upload`, { bytes: a.bytes, mimeType: a.mimeType });
       if (!session.complete && !(await post(`${path}/complete`)).complete) {
         const bytes = await repo.media(snapshot.draft.id, a.id);
-        if (!bytes || await digest(bytes) !== a.sha256) throw new Error('Ein Original fehlt auf diesem Gerät.');
+        if (!bytes || await digest(bytes) !== a.sha256) throw new Error('An original file is missing on this device.');
         await upload(session.uploadUrl, bytes, a.mimeType, controller.signal);
         if (!(await post(`${path}/complete`)).complete) throw new Error('Ein Original wartet noch auf die Cloud.');
       }
@@ -96,13 +96,13 @@ export function startTeamSync(repo: DraftRepository, changed: (view: TeamView) =
             const [section, field] = key.split('.');
             if (section === 'contact' || section === 'request') {
               const record = snapshot.draft[section] as Record<string, string>;
-              return field === 'throughput' ? `${record.throughput} ${record.unit}`.trim() || '(leer)' : record[field] || '(leer)';
+              return field === 'throughput' ? `${record.throughput} ${record.unit}`.trim() || '(empty)' : record[field] || '(empty)';
             }
-            if (key === 'note' || key === 'event') return snapshot.draft[key] || '(leer)';
-            if (section === 'job') return JSON.stringify(snapshot.jobs.find(j => j.id === key.slice(4))?.result ?? '(noch in Verarbeitung)');
-            return JSON.stringify(section === 'entry' ? snapshot.draft.entries?.find(e => e.id === key.slice(6)) : snapshot.draft.attachments.find(a => a.id === key.slice(7))) || '(leer)';
+            if (key === 'note' || key === 'event') return snapshot.draft[key] || '(empty)';
+            if (section === 'job') return JSON.stringify(snapshot.jobs.find(j => j.id === key.slice(4))?.result ?? '(still processing)');
+            return JSON.stringify(section === 'entry' ? snapshot.draft.entries?.find(e => e.id === key.slice(6)) : snapshot.draft.attachments.find(a => a.id === key.slice(7))) || '(empty)';
           };
-          report({ state: 'conflict', conflicts: result.conflicts, comparisons: result.conflicts.map(key => ({ key, local: describe(local, key), team: describe(latest.snapshot, key) })), message: 'Ihr habt dieselben Angaben geändert. Beide Fassungen sind erhalten.' }); return;
+          report({ state: 'conflict', conflicts: result.conflicts, comparisons: result.conflicts.map(key => ({ key, local: describe(local, key), team: describe(latest.snapshot, key) })), message: 'You both changed the same details. Both versions are kept.' }); return;
         }
         candidate = result.snapshot;
       }
@@ -116,7 +116,7 @@ export function startTeamSync(repo: DraftRepository, changed: (view: TeamView) =
       report({ revision: candidate.draft.revision, state: manifestText(candidate) === latest.text ? 'saved' : 'pending' });
       wake(); return;
     }
-    if (!remote && link.fingerprint) throw new Error('Der gemeinsame Stand ist nicht erreichbar. Deine Änderungen bleiben hier.');
+    if (!remote && link.fingerprint) throw new Error('The shared version is unavailable. Your changes stay saved here.');
     const saved = await push(link.teamId, local, remote?.fingerprint ?? null);
     const acknowledged = await store.acknowledge(id, localText, { ...link, fingerprint: saved.fingerprint, base: localText, author: saved.updatedBy });
     report({ state: acknowledged ? 'saved' : 'pending' });
@@ -129,25 +129,25 @@ export function startTeamSync(repo: DraftRepository, changed: (view: TeamView) =
       view.links = await store.links();
       if (!navigator.onLine) { for (const id of Object.keys(view.links)) status(id, { state: 'pending' }); return; }
       const response = await api('');
-      if (!response.ok) throw new Error('Der Team-Bereich ist noch nicht verfügbar.');
+      if (!response.ok) throw new Error('The team workspace is not available yet.');
       const teams: Team[] = await response.json();
       view.teams = teams; view.available = true; view.error = undefined; await store.catalog(teams);
       const copies: TeamView['copies'] = [];
       for (const team of teams) {
         const response = await api(`/${team.id}/drafts`);
-        if (!response.ok) throw new Error('Die Team-Besucher konnten nicht geladen werden.');
+        if (!response.ok) throw new Error('Shared visitors could not be loaded.');
         const records: TeamCopy[] = await response.json();
         copies.push(...records.map(copy => ({ ...copy, teamId: team.id })));
       }
       view.copies = copies; emit();
       for (const [id, link] of Object.entries(view.links)) {
         try {
-          if (!teams.some(t => t.id === link.teamId)) throw new Error('Dein Konto hat aktuell keinen Zugriff auf diesen Team-Bereich.');
+          if (!teams.some(t => t.id === link.teamId)) throw new Error('Your account does not currently have access to this team workspace.');
           await reconcile(id, link, copies.find(c => c.teamId === link.teamId && c.draftId === id));
-        } catch (error) { status(id, { state: navigator.onLine ? 'error' : 'pending', message: error instanceof Error ? error.message : 'Team-Sicherung wartet.' }); }
+        } catch (error) { status(id, { state: navigator.onLine ? 'error' : 'pending', message: error instanceof Error ? error.message : 'Team saving is pending.' }); }
       }
       view.links = await store.links(); emit();
-    } catch (error) { view.error = error instanceof Error ? error.message : 'Der Team-Bereich ist nicht erreichbar.'; emit(); }
+    } catch (error) { view.error = error instanceof Error ? error.message : 'The team workspace is unavailable.'; emit(); }
     finally { busy = false; }
   }
   let debounce: ReturnType<typeof setTimeout> | undefined;
@@ -155,27 +155,27 @@ export function startTeamSync(repo: DraftRepository, changed: (view: TeamView) =
   const timer = ready ? setInterval(() => { void tick(); }, 15_000) : undefined;
   if (ready) {
     window.addEventListener('online', wake);
-    void ready.then(async store => { view.teams = await store.teams(); view.links = await store.links(); emit(); wake(); }).catch(() => { view.error = 'Der lokale Team-Stand konnte nicht geöffnet werden.'; emit(); });
+    void ready.then(async store => { view.teams = await store.teams(); view.links = await store.links(); emit(); wake(); }).catch(() => { view.error = 'The local team workspace could not be opened.'; emit(); });
   }
   return {
     get view() { return view; }, wake,
     close() { controller.abort(); clearInterval(timer); clearTimeout(debounce); window.removeEventListener('online', wake); for (const release of pendingDecisions.values()) release(); pendingDecisions.clear(); void ready?.then(s => s.close()); },
     async share(id: string, teamId: string) {
       const team = view.teams.find(t => t.id === teamId);
-      if (!ready || !team) throw new Error('Wähle einen verfügbaren Team-Bereich.');
+      if (!ready || !team) throw new Error('Choose an available team workspace.');
       const store = await ready; await store.share(id, team); view.links = await store.links(); status(id, { state: 'pending' }); await refresh(); wake();
     },
     cancelOpen() { opening?.abort(); },
     async open(id: string, teamId: string) {
-      if (!ready) throw new Error('Der Team-Bereich ist nicht bereit.');
+      if (!ready) throw new Error('The team workspace is not ready.');
       const store = await ready;
       const existing = await store.read(id);
       if (existing.snapshot) {
         if (existing.link?.teamId === teamId) return;
-        throw new Error('Du hast bereits eine persönliche Fassung dieses Besuchers. Öffne sie unter Deinen persönlichen Besuchen und teile sie über Kontakt & Bedarf, um Änderungen abzugleichen.');
+        throw new Error('You already have a personal copy of this visitor. Open it under My personal visits and share it from Details & request to reconcile changes.');
       }
       const copy = view.copies.find(c => c.draftId === id && c.teamId === teamId);
-      if (!copy) throw new Error('Der Team-Besucher wurde nicht gefunden.');
+      if (!copy) throw new Error('The shared visitor could not be found.');
       opening?.abort(); const download = new AbortController(); opening = download;
       const latest = await metadata(teamId, copy, download.signal);
       const media = await originals(teamId, latest.snapshot, download.signal);

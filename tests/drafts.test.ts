@@ -10,12 +10,12 @@ describe('draft lifecycle', () => {
     for (const entry of ['contact', 'card', 'voice', 'request'] as const) {
       const draft = createDraft(entry, entry, 'Synthetic Fair', now);
       expect(draft.entry).toBe(entry);
-      expect(rfqGaps(draft.request)).toEqual(['Produkt', 'Behälter', 'Durchsatz + Einheit']);
+      expect(rfqGaps(draft.request)).toEqual(['Product', 'Container', 'Throughput + unit']);
     }
     const draft = reduceDraft(createDraft('a', 'request', '', now), { type: 'edit', patch: { request: { product: 'Juice', packaging: 'Glass', throughput: '2400', unit: 'bottles/h' } } }, now);
     expect(rfqGaps(draft.request)).toEqual([]);
-    expect(rfqGaps({ ...draft.request, throughput: '-5' })).toEqual(['Durchsatz + Einheit']);
-    expect(rfqGaps({ ...draft.request, unit: '' })).toEqual(['Durchsatz + Einheit']);
+    expect(rfqGaps({ ...draft.request, throughput: '-5' })).toEqual(['Throughput + unit']);
+    expect(rfqGaps({ ...draft.request, unit: '' })).toEqual(['Throughput + unit']);
   });
 
   test('late extraction preserves manual corrections, including deliberately cleared values', () => {
@@ -56,7 +56,7 @@ describe('WhatsApp introduction preparation', () => {
     let draft = reduceDraft(createDraft('a', 'contact', 'Synthetic Fair', now), { type: 'edit', patch: { contact: { name: 'Synthetic Visitor', phone: '+12025550182' } } }, now);
     draft = reduceDraft(draft, { type: 'followup', sender, operationId: 'intro-1' }, now);
     expect(draft.followup).toMatchObject({ id: 'intro-1', state: 'prepared', recipient: '+12025550182' });
-    expect(draft.followup?.message).toContain('27.10.2026');
+    expect(draft.followup?.message).toContain('10/27/2026');
     expect(draft.followup?.message).toContain(sender.name);
     const duplicate = reduceDraft(draft, { type: 'followup', sender, operationId: 'intro-2' }, now);
     expect(duplicate).toBe(draft);

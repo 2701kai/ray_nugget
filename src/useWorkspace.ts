@@ -62,7 +62,7 @@ export function useWorkspace() {
             return newer && newer.revision > record.revision ? newer : record;
           })].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)));
         }
-      }, message => { if (alive) setProcessingError(message ? 'Die Verarbeitung pausiert. Du kannst weiter erfassen; Pete versucht es erneut.' : ''); }, Crypto.randomUUID);
+      }, message => { if (alive) setProcessingError(message ? 'Background processing is paused. You can keep capturing; Pete will retry.' : ''); }, Crypto.randomUUID);
       runner.current = currentRunner;
     }).catch(error => { if (alive) { setError(error instanceof Error ? error.message : 'Local storage is unavailable.'); setLoading(false); } });
     const subscription = AppState.addEventListener('change', state => {

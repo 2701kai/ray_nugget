@@ -10,7 +10,7 @@ export const manifestText = (snapshot: Parameters<typeof encodeManifest>[0]) => 
 export function mergeTeam(baseText: string | undefined, localText: string, remoteText: string, choices: Record<string, 'local' | 'team'> = {}) {
   const local = parse(localText), remote = parse(remoteText);
   const base = baseText ? parse(baseText) : { draft: { ...local.draft, attachments: [], entries: [] }, jobs: [] };
-  if (base.draft.id !== local.draft.id || base.draft.id !== remote.draft.id) throw new Error('Die Besucher-Zuordnung stimmt nicht.');
+  if (base.draft.id !== local.draft.id || base.draft.id !== remote.draft.id) throw new Error('The visitor association does not match.');
   const conflicts: string[] = [];
   function pick<T>(key: string, b: T, l: T, r: T): T {
     if (text(l) === text(r) || (baseText && text(r) === text(b))) return l;

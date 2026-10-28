@@ -21,7 +21,7 @@ test('team merge combines separate fields and notes without crossing visitor ide
   expect(result.snapshot.draft.contact.name).toBe('Synthetic visitor');
   expect(result.snapshot.draft.entries?.[0].text).toBe('Synthetic follow-up');
   expect(result.snapshot.draft.provenance['contact.name']).toEqual(l.draft.provenance['contact.name']);
-  expect(() => mergeTeam(manifestText(b), manifestText(l), manifestText({ ...r, draft: { ...r.draft, id: 'another-visitor' } }))).toThrow('Zuordnung');
+  expect(() => mergeTeam(manifestText(b), manifestText(l), manifestText({ ...r, draft: { ...r.draft, id: 'another-visitor' } }))).toThrow('association');
 });
 test('same-field edits require a decision, intentional empty values and capacity units remain paired', () => {
   const b = edited(base(), 'Original');

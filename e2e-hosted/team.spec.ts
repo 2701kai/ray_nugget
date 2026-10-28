@@ -56,65 +56,65 @@ test('two members share originals, merge offline notes and explicitly resolve co
     await alpha.setViewportSize({width:402,height:874});
     await alpha.goto('/'); await beta.goto('http://localhost:8085');
     await expect(alpha.getByText('CIBUSTEC',{exact:true})).toBeVisible();
-    await alpha.getByRole('button',{name:'Neuer Besucher',exact:true}).click();
-    await alpha.getByRole('button',{name:'Sprachnotiz aufnehmen',exact:true}).click();
+    await alpha.getByRole('button',{name:'New visitor',exact:true}).click();
+    await alpha.getByRole('button',{name:'Capture a voice note',exact:true}).click();
     await expect(alpha.getByText(/^00:0[1-3]$/)).toBeVisible();
-    await alpha.getByRole('button',{name:'Stoppen und speichern',exact:true}).click();
+    await alpha.getByRole('button',{name:'Stop and save recording',exact:true}).click();
     await expect(alpha.getByRole('heading',{name:'Cloud Visitor',exact:true})).toBeVisible();
-    await expect(alpha.getByText('Im Team gesichert',{exact:true})).toBeVisible({timeout:30000});
-    await expect(beta.getByRole('button',{name:'Besucher öffnen Cloud Visitor',exact:true})).toBeVisible({timeout:30000});
-    await beta.getByRole('button',{name:'Besucher öffnen Cloud Visitor',exact:true}).click();
+    await expect(alpha.getByText('Saved to team',{exact:true})).toBeVisible({timeout:30000});
+    await expect(beta.getByRole('button',{name:'Open visitor Cloud Visitor',exact:true})).toBeVisible({timeout:30000});
+    await beta.getByRole('button',{name:'Open visitor Cloud Visitor',exact:true}).click();
     await expect(beta.getByRole('heading',{name:'Cloud Visitor',exact:true})).toBeVisible();
-    await beta.getByRole('button',{name:'Aufnahme abspielen',exact:true}).click();
-    await expect(beta.getByRole('button',{name:'Aufnahme pausieren',exact:true})).toBeVisible();
-    await beta.getByRole('button',{name:'Aufnahme pausieren',exact:true}).click();
+    await beta.getByRole('button',{name:'Play recording',exact:true}).click();
+    await expect(beta.getByRole('button',{name:'Pause recording',exact:true})).toBeVisible();
+    await beta.getByRole('button',{name:'Pause recording',exact:true}).click();
     // Different offline notes must converge on the same visitor, keeping both sources.
     await context.setOffline(true);
     async function note(p: typeof page, text: string) {
-      await p.getByRole('button',{name:'Notiz ergänzen',exact:true}).click();
-      await p.getByLabel('Notiz',{exact:true}).fill(text);
-      await p.getByRole('button',{name:'Notiz speichern',exact:true}).click();
+      await p.getByRole('button',{name:'Add note',exact:true}).click();
+      await p.getByLabel('Note',{exact:true}).fill(text);
+      await p.getByRole('button',{name:'Save note',exact:true}).click();
     }
     await note(alpha, 'Synthetic offline alpha note');
     await note(beta, 'Synthetic beta note');
-    await expect(beta.getByText('Im Team gesichert',{exact:true})).toBeVisible({timeout:30000});
+    await expect(beta.getByText('Saved to team',{exact:true})).toBeVisible({timeout:30000});
     await context.setOffline(false);
     await expect(alpha.getByText('Synthetic beta note',{exact:true})).toBeVisible({timeout:30000});
     await expect(beta.getByText('Synthetic offline alpha note',{exact:true})).toBeVisible({timeout:30000});
     // Both edit the same field from the same base. No last-write-wins overwrite.
-    await expect(alpha.getByText('Im Team gesichert',{exact:true})).toBeVisible({timeout:30000});
+    await expect(alpha.getByText('Saved to team',{exact:true})).toBeVisible({timeout:30000});
     async function editName(p: typeof page, name: string) {
-      await p.getByRole('button',{name:'Kontakt & Bedarf',exact:true}).click();
-      await p.getByRole('button',{name:'Kontakt bearbeiten',exact:true}).click();
+      await p.getByRole('button',{name:'Details & request',exact:true}).click();
+      await p.getByRole('button',{name:'Edit contact',exact:true}).click();
       await p.getByLabel('Name',{exact:true}).fill(name);
-      await p.getByRole('button',{name:'Kontakt speichern',exact:true}).click();
-      await p.getByRole('button',{name:'Gespräch',exact:true}).click();
+      await p.getByRole('button',{name:'Save contact',exact:true}).click();
+      await p.getByRole('button',{name:'Conversation',exact:true}).click();
     }
-    await alpha.getByRole('button',{name:'Kontakt & Bedarf',exact:true}).click();
-    await alpha.getByRole('button',{name:'Kontakt bearbeiten',exact:true}).click();
+    await alpha.getByRole('button',{name:'Details & request',exact:true}).click();
+    await alpha.getByRole('button',{name:'Edit contact',exact:true}).click();
     await alpha.getByLabel('Name',{exact:true}).fill('Alpha corrected name');
     await editName(beta,'Beta corrected name');
-    await expect(beta.getByText('Im Team gesichert',{exact:true})).toBeVisible({timeout:30000});
+    await expect(beta.getByText('Saved to team',{exact:true})).toBeVisible({timeout:30000});
     // Incoming team snapshots wait while a capture/edit panel owns the visitor.
     // Otherwise a background pull could advance the merge baseline underneath
     // the user's unsaved field buffer and hide a genuine competing edit.
     await alpha.waitForTimeout(16000);
     await expect(alpha.getByLabel('Name',{exact:true})).toHaveValue('Alpha corrected name');
-    await alpha.getByRole('button',{name:'Kontakt speichern',exact:true}).click();
-    await alpha.getByRole('button',{name:'Gespräch',exact:true}).click();
-    await expect(alpha.getByText('Gemeinsame Änderungen abstimmen',{exact:true})).toBeVisible({timeout:30000});
-    await expect(alpha.getByText('Auf Deinem Gerät: Alpha corrected name',{exact:true})).toBeVisible();
-    await expect(alpha.getByText('Im Team: Beta corrected name',{exact:true})).toBeVisible();
-    await alpha.getByRole('button',{name:'Team-Angabe',exact:true}).click();
-    await alpha.getByRole('button',{name:'Auswahl zusammenführen',exact:true}).click();
+    await alpha.getByRole('button',{name:'Save contact',exact:true}).click();
+    await alpha.getByRole('button',{name:'Conversation',exact:true}).click();
+    await expect(alpha.getByText('Review shared changes',{exact:true}).first()).toBeVisible({timeout:30000});
+    await expect(alpha.getByText('On your device: Alpha corrected name',{exact:true})).toBeVisible();
+    await expect(alpha.getByText('In the team: Beta corrected name',{exact:true})).toBeVisible();
+    await alpha.getByRole('button',{name:'Team version',exact:true}).click();
+    await alpha.getByRole('button',{name:'Merge selected details',exact:true}).click();
     await expect(alpha.getByRole('heading',{name:'Beta corrected name',exact:true})).toBeVisible({timeout:30000});
     await expect(alpha.getByText('Synthetic offline alpha note',{exact:true})).toBeVisible();
     await alpha.reload();
     await expect(alpha.getByRole('heading',{name:'Beta corrected name',exact:true})).toBeVisible();
     expect(await alpha.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
-    expect((await alpha.getByRole('button',{name:'Neuer Besucher',exact:true}).boundingBox())!.y).toBeGreaterThanOrEqual(0);
+    expect((await alpha.getByRole('button',{name:'New visitor',exact:true}).boundingBox())!.y).toBeGreaterThanOrEqual(0);
     await alpha.screenshot({path:test.info().outputPath('shared-mobile-conversation.png'),animations:'disabled'});
-    await alpha.getByRole('button',{name:'Besucher',exact:true}).click();
+    await alpha.getByRole('button',{name:'Visitors',exact:true}).click();
     await alpha.screenshot({path:test.info().outputPath('shared-mobile-event.png'),animations:'disabled'});
   } finally { await other.close(); }
 

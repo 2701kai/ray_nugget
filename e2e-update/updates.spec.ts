@@ -48,11 +48,11 @@ async function checkUpdate(page: Page) {
   await page.evaluate(() => window.dispatchEvent(new Event('focus')));
 }
 async function visitor(page: Page) {
-  await page.getByRole('button', { name: 'Neuer Besucher', exact: true }).click();
-  await page.getByRole('button', { name: 'Kontakt & Bedarf', exact: true }).click();
-  await page.getByRole('button', { name: 'Kontakt bearbeiten', exact: true }).click();
+  await page.getByRole('button', { name: 'New visitor', exact: true }).click();
+  await page.getByRole('button', { name: 'Details & request', exact: true }).click();
+  await page.getByRole('button', { name: 'Edit contact', exact: true }).click();
   await page.getByLabel('Name', { exact: true }).fill('Synthetic Update Visitor');
-  await page.getByRole('button', { name: 'Kontakt speichern', exact: true }).click();
+  await page.getByRole('button', { name: 'Save contact', exact: true }).click();
 }
 test.beforeEach(async ({ context }) => {
   await installIdentity(context);
@@ -64,21 +64,21 @@ test('update keeps an unsaved form, then reloads with the same signed-in account
   const site = await releases();
   try {
     await page.goto(site.origin); await ready(page); await visitor(page);
-    await page.getByRole('button', { name: 'Kontakt bearbeiten', exact: true }).click();
+    await page.getByRole('button', { name: 'Edit contact', exact: true }).click();
     await page.getByLabel('Name', { exact: true }).fill('Synthetic Edited Visitor');
     await page.getByLabel('Name', { exact: true }).blur();
     site.next(); await checkUpdate(page);
-    await expect(page.getByText(/Neue Version bereit/)).toBeAttached();
+    await expect(page.getByText(/New version ready/)).toBeAttached();
     await page.waitForTimeout(6500);
     await expect(page.getByLabel('Name', { exact: true })).toHaveValue('Synthetic Edited Visitor');
     await expect(page.getByText('Version 8.0.1', { exact: true })).toBeAttached();
     await page.bringToFront();
-    await page.getByRole('button', { name: 'Kontakt speichern', exact: true }).click();
+    await page.getByRole('button', { name: 'Save contact', exact: true }).click();
     await expect(page.getByText('Version 8.0.2', { exact: true })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Synthetic Edited Visitor', exact: true })).toBeVisible();
-    await page.getByRole('button', { name: 'Einstellungen', exact: true }).click();
+    await page.getByRole('button', { name: 'Settings', exact: true }).click();
     await expect(page.getByText('autofill-test@bevmaq.com', { exact: true })).toBeVisible();
-    await page.getByRole('button', { name: 'Schließen', exact: true }).click();
+    await page.getByRole('button', { name: 'Close', exact: true }).click();
     expect(await page.evaluate(async () => !!(await (await caches.open('pete-shell-2222222222222222')).match('/index.html')))).toBe(true);
     await page.context().setOffline(true); await page.reload();
     await expect(page.getByText('Version 8.0.2', { exact: true })).toBeVisible();
@@ -90,7 +90,7 @@ test('idle tab updates independently while another tab edits; older assets survi
   const site = await releases();
   try {
     await page.goto(site.origin); await ready(page); await visitor(page);
-    await page.getByRole('button', { name: 'Kontakt bearbeiten', exact: true }).click();
+    await page.getByRole('button', { name: 'Edit contact', exact: true }).click();
     await page.getByLabel('Name', { exact: true }).fill('Synthetic Two Tab Visitor');
     const idle = await context.newPage(); await idle.goto(site.origin); await ready(idle);
     site.next(); await checkUpdate(idle);
@@ -100,7 +100,7 @@ test('idle tab updates independently while another tab edits; older assets survi
     expect(await page.evaluate(async () => (await fetch('/assets/update-fixture-1.txt')).status)).toBe(200);
     expect(await page.evaluate(async () => (await caches.keys()).includes('pete-shell-1111111111111111'))).toBe(true);
     await page.bringToFront();
-    await page.getByRole('button', { name: 'Kontakt speichern', exact: true }).click();
+    await page.getByRole('button', { name: 'Save contact', exact: true }).click();
     await expect(page.getByText('Version 8.0.2', { exact: true })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Synthetic Two Tab Visitor', exact: true })).toBeVisible();
     await page.evaluate(() => navigator.serviceWorker.controller?.postMessage({ type: 'PETE_CLIENT_READY' }));
@@ -113,18 +113,18 @@ test('a running voice capture is not interrupted by activation and its original 
   const site = await releases();
   try {
     await page.goto(site.origin); await ready(page); await visitor(page);
-    await page.getByRole('button', { name: 'Gespräch', exact: true }).click();
-    await page.getByRole('button', { name: 'Sprachnotiz aufnehmen', exact: true }).click();
+    await page.getByRole('button', { name: 'Conversation', exact: true }).click();
+    await page.getByRole('button', { name: 'Capture a voice note', exact: true }).click();
     await expect(page.getByText(/^00:0[1-3]$/)).toBeVisible();
     site.next(); await checkUpdate(page);
-    await expect(page.getByText(/Neue Version bereit/)).toBeAttached();
+    await expect(page.getByText(/New version ready/)).toBeAttached();
     await page.waitForTimeout(6500);
-    await expect(page.getByRole('button', { name: 'Stoppen und speichern', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Stop and save recording', exact: true })).toBeVisible();
     await expect(page.getByText('Version 8.0.1', { exact: true })).toBeAttached();
-    await page.getByRole('button', { name: 'Stoppen und speichern', exact: true }).click();
+    await page.getByRole('button', { name: 'Stop and save recording', exact: true }).click();
     await expect(page.getByText('Version 8.0.2', { exact: true })).toBeVisible();
-    await page.getByRole('button', { name: 'Aufnahme abspielen', exact: true }).click();
-    await expect(page.getByRole('button', { name: 'Aufnahme pausieren', exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Play recording', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Pause recording', exact: true })).toBeVisible();
   } finally { await site.close(); }
 });
 

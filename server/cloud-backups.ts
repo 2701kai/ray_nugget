@@ -46,7 +46,7 @@ export function cloudBackups(store: AtomicStore, storage: ReturnType<typeof host
   async function save(owner: string, id: string, bytes: Uint8Array, expected: string | null, team?: { actor: string; event: string }) {
     let snapshot;
     try { snapshot = decodeManifest(bytes); } catch { throw new ApiError('Cloud visitor details are invalid or too large.'); }
-    if (team && (snapshot.draft.event !== team.event || sha(new TextEncoder().encode(snapshot.draft.id)) !== id)) throw new ApiError('Der Besucher gehört zu einem anderen Event.', 409);
+    if (team && (snapshot.draft.event !== team.event || sha(new TextEncoder().encode(snapshot.draft.id)) !== id)) throw new ApiError('This visitor belongs to a different event.', 409);
     for (const attachment of snapshot.draft.attachments) {
       const media = await store.read<Media>(mediaKey(owner, attachment.sha256));
       if (!media?.verified || media.bytes !== attachment.bytes || media.mimeType !== attachment.mimeType) throw new ApiError('An original is still waiting to reach company storage.', 409);

@@ -6,6 +6,7 @@ import { pwaWorker } from './pwa-worker';
 const output = process.env.PETE_WEB_OUTPUT || 'dist';
 const htmlFile = Bun.file(`${output}/index.html`);
 let html = await htmlFile.text();
+html = html.replace(/<html[^>]*>/, '<html lang="en-US">');
 html = html.replace(/<meta name="viewport"[^>]*>/, '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">');
 html = html.replace('</head>', `<link rel="manifest" href="/manifest.webmanifest">
 <link rel="icon" href="/icons/pete-192.png" type="image/png">

@@ -20,25 +20,25 @@ export function CardCapture({ draft, workspace, done, lock }: { draft: Draft; wo
     try {
       if (camera && Platform.OS !== 'web') {
         const permission = await ImagePicker.requestCameraPermissionsAsync();
-        if (!permission.granted) throw new Error('Kamerazugriff fehlt. Erlaube ihn in den Einstellungen oder wähle ein Foto aus.');
+        if (!permission.granted) throw new Error('Camera access is off. Allow it in device settings or choose a photo instead.');
       }
       const options: ImagePicker.ImagePickerOptions = { mediaTypes: ['images'], quality: 1, allowsEditing: false, cameraType: ImagePicker.CameraType.back };
       const result = camera ? await ImagePicker.launchCameraAsync(options) : await ImagePicker.launchImageLibraryAsync(options);
       if (result.canceled) return;
       const asset = result.assets[0];
-      if (asset.fileSize && asset.fileSize > MAX_MEDIA_BYTES) throw new Error('Wähle ein Bild unter 15 MB.');
+      if (asset.fileSize && asset.fileSize > MAX_MEDIA_BYTES) throw new Error('Choose an image smaller than 15 MB.');
       await workspace.attach(draft.id, asset.uri, { kind: 'card', name: asset.fileName || 'Business card.jpg', mimeType: asset.mimeType || 'image/jpeg' });
       done();
-    } catch (e) { setError(e instanceof Error ? e.message : 'Das Foto konnte nicht gespeichert werden. Versuche es erneut.'); }
+    } catch (e) { setError(e instanceof Error ? e.message : 'The photo could not be saved. Please try again.'); }
     finally { active.current = false; setBusy(false); lock(false); }
   }
   return <>
-    <View style={{ padding: 32, minHeight: 170, backgroundColor: colors.pale, borderRadius: 16, borderWidth: 1, borderColor: colors.line, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', gap: 14 }}><Icon name="card" size={42} color={colors.green} /><Txt weight="semibold">Karte aufnehmen, Kontakt ergänzen.</Txt><Txt style={{ color: colors.muted, fontSize: 16, textAlign: 'center' }}>Halte die ganze Karte scharf im Bild.</Txt></View>
+    <View style={{ padding: 32, minHeight: 170, backgroundColor: colors.pale, borderRadius: 16, borderWidth: 1, borderColor: colors.line, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', gap: 14 }}><Icon name="card" size={42} color={colors.green} /><Txt weight="semibold">One card. Keep the connection.</Txt><Txt style={{ color: colors.muted, fontSize: 16, textAlign: 'center' }}>Keep the card in frame and the text in focus.</Txt></View>
     <ErrorNotice message={error} />
-    <Button label={busy ? 'Foto wird gespeichert…' : 'Foto aufnehmen'} icon="camera" disabled={busy} onPress={() => pick(true)} />
-    <Button label={busy ? 'Foto wird gespeichert…' : 'Kartenfoto auswählen'} icon="card" disabled={busy} onPress={() => pick(false)} kind="secondary" />
-    {Platform.OS === 'web' && <Txt style={{ fontSize: 16, color: colors.muted }}>Dein Browser öffnet die Kamera oder die Fotoauswahl.</Txt>}
-    <Txt style={{ fontSize: 16, lineHeight: 24, color: colors.muted }}>{workspace.cloudEnabled ? 'Das Foto wird hier und in Company Cloud gesichert. Pete liest die Karte lokal; Google ergänzt die Angaben in der EU.' : 'Das Original bleibt auf diesem Gerät. Pete liest die Karte lokal.'}</Txt>
+    <Button label={busy ? 'Saving photo…' : 'Take a photo'} icon="camera" disabled={busy} onPress={() => pick(true)} />
+    <Button label={busy ? 'Saving photo…' : 'Choose a card photo'} icon="card" disabled={busy} onPress={() => pick(false)} kind="secondary" />
+    {Platform.OS === 'web' && <Txt style={{ fontSize: 16, color: colors.muted }}>On a phone, Take a photo requests the rear camera. Your browser may offer a camera or file chooser.</Txt>}
+    <Txt style={{ fontSize: 16, lineHeight: 24, color: colors.muted }}>{workspace.cloudEnabled ? 'Photo saved here and backed up automatically to company cloud. Pete reads the text on this device; Google in the EU fills the details from it.' : 'The original photo stays on this device. Pete reads the text locally.'}</Txt>
   </>;
 }
 
@@ -57,7 +57,7 @@ export function VoiceCapture({ draft, workspace, done, lock, initialMode = 'memo
       pendingUri.current = status.url;
       if (!active.current) finishRef.current();
     } else if (status.hasError || status.mediaServicesDidReset) {
-      setPhase('idle'); setError(status.error || 'Die Aufnahme wurde unterbrochen. Prüfe das Mikrofon und versuche es erneut.');
+      setPhase('idle'); setError(status.error || 'Recording was interrupted. Check the microphone and try again.');
       if (!active.current) lock(false);
     }
   });
@@ -76,12 +76,12 @@ export function VoiceCapture({ draft, workspace, done, lock, initialMode = 'memo
     if (active.current || (mode === 'conversation' && !consent)) return;
     active.current = true; setPhase('preparing'); setError(''); lock(true);
     try {
-      if (!(await requestPermission()).granted) throw new Error('Mikrofonzugriff fehlt. Erlaube ihn in den Geräte- oder Browser-Einstellungen.');
+      if (!(await requestPermission()).granted) throw new Error('Microphone access is off. Allow it in device or browser settings, then try again.');
       await setRecordingMode(true);
       await recorder.prepareToRecordAsync();
       recorder.record();
       setPhase('recording');
-    } catch (e) { setPhase('idle'); lock(false); setError(e instanceof Error ? e.message : 'Die Aufnahme konnte nicht gestartet werden.'); }
+    } catch (e) { setPhase('idle'); lock(false); setError(e instanceof Error ? e.message : 'Recording could not start.'); }
     finally { active.current = false; }
   }
   useEffect(() => { if (autoStart && initialMode === 'memo') void start(); }, []);
@@ -93,39 +93,39 @@ export function VoiceCapture({ draft, workspace, done, lock, initialMode = 'memo
         await recorder.stop();
         pendingUri.current = recorder.uri;
       }
-      if (!pendingUri.current) throw new Error('Es liegt keine Aufnahme vor. Starte eine neue Notiz.');
+      if (!pendingUri.current) throw new Error('No recording was returned. Please start a new note.');
       await setRecordingMode(false);
       const mimeType = Platform.OS === 'web' ? 'audio/webm' : 'audio/mp4';
       await workspace.attach(draft.id, pendingUri.current, {
-        kind: 'voice', name: mode === 'memo' ? 'Sprachnotiz' : 'Gespräch mit Zustimmung', mimeType,
+        kind: 'voice', name: mode === 'memo' ? 'Voice note' : 'Consented conversation', mimeType,
         voiceMode: mode, consentConfirmed: mode === 'conversation' ? consent : undefined,
       });
       pendingUri.current = null; done();
-    } catch (e) { setPhase(pendingUri.current ? 'retry' : 'idle'); setError(e instanceof Error ? e.message : 'Die Aufnahme konnte nicht gespeichert werden.'); }
+    } catch (e) { setPhase(pendingUri.current ? 'retry' : 'idle'); setError(e instanceof Error ? e.message : 'The recording could not be saved.'); }
     finally { active.current = false; lock(!!pendingUri.current); }
   }
   finishRef.current = () => { void finish(); };
   const recording = phase === 'recording';
   return <>
-    {phase === 'idle' && <Choice label="Was nimmst Du auf?" value={mode} options={[{ value: 'memo', label: 'Eigene Sprachnotiz' }, { value: 'conversation', label: 'Gespräch' }]} onChange={setMode} />}
-    {mode === 'conversation' && phase === 'idle' && <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: consent }} aria-checked={consent} accessibilityLabel="Die andere Person stimmt der Aufnahme zu" onPress={() => setConsent(!consent)} style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}><View style={{ width: 22, height: 22, borderWidth: 1, borderColor: colors.green, borderRadius: 5, backgroundColor: consent ? colors.green : colors.paper }}>{consent && <Icon name="check" size={20} color={colors.paper} />}</View><Txt style={{ flex: 1, fontSize: 16 }}>Die andere Person stimmt der Aufnahme zu.</Txt></Pressable>}
+    {phase === 'idle' && <Choice label="What are you recording?" value={mode} options={[{ value: 'memo', label: 'My own voice memo' }, { value: 'conversation', label: 'Conversation' }]} onChange={setMode} />}
+    {mode === 'conversation' && phase === 'idle' && <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: consent }} aria-checked={consent} accessibilityLabel="The other person agreed to this recording" onPress={() => setConsent(!consent)} style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}><View style={{ width: 22, height: 22, borderWidth: 1, borderColor: colors.green, borderRadius: 5, backgroundColor: consent ? colors.green : colors.paper }}>{consent && <Icon name="check" size={20} color={colors.paper} />}</View><Txt style={{ flex: 1, fontSize: 16 }}>The other person agreed to this recording.</Txt></Pressable>}
     <View style={{ alignItems: 'center', gap: 10, padding: 16, borderRadius: 12, backgroundColor: colors.pale }}>
       <View style={{ width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: recording ? colors.green : colors.sage }}><Icon name={recording ? 'mic' : 'clock'} size={22} color={recording ? colors.paper : colors.green} /></View>
       <Txt weight="semibold" style={{ fontSize: 30, lineHeight: 38, fontVariant: ['tabular-nums'], fontFamily: fonts.medium }}>{String(Math.floor(seconds / 60)).padStart(2, '0')}:{String(seconds % 60).padStart(2, '0')}</Txt>
-      <Txt style={{ fontSize: 16, color: colors.muted }}>{phase === 'saving' ? 'Originalaufnahme wird gespeichert…' : phase === 'preparing' ? 'Mikrofon wird vorbereitet…' : recording ? 'Aufnahme läuft · Stoppen speichert beim Besucher' : phase === 'retry' ? 'Noch nicht gespeichert · lass diese Seite offen' : mode === 'conversation' ? 'Bis zu 30 Minuten. Stoppe zum Speichern.' : 'Deine Zusammenfassung, bis zu 3 Minuten.'}</Txt>
+      <Txt style={{ fontSize: 16, color: colors.muted }}>{phase === 'saving' ? 'Saving the original recording…' : phase === 'preparing' ? 'Preparing microphone…' : recording ? 'Recording · stop to save to this visitor' : phase === 'retry' ? 'Not saved yet · keep this page open' : mode === 'conversation' ? 'Up to 30 minutes. Stop and save when you are done.' : 'A short note is all you need. Up to 3 minutes.'}</Txt>
     </View>
     <ErrorNotice message={error} />
-    <Button label={recording ? 'Stoppen und speichern' : phase === 'retry' ? 'Aufnahme erneut speichern' : phase === 'saving' ? 'Aufnahme wird gespeichert…' : phase === 'preparing' ? 'Mikrofon wird vorbereitet…' : 'Aufnahme starten'} icon={recording ? 'stop' : 'mic'} disabled={phase === 'saving' || phase === 'preparing' || (mode === 'conversation' && !consent)} onPress={recording || phase === 'retry' ? finish : start} />
+    <Button label={recording ? 'Stop and save recording' : phase === 'retry' ? 'Retry saving recording' : phase === 'saving' ? 'Saving recording…' : phase === 'preparing' ? 'Preparing microphone…' : 'Start recording'} icon={recording ? 'stop' : 'mic'} disabled={phase === 'saving' || phase === 'preparing' || (mode === 'conversation' && !consent)} onPress={recording || phase === 'retry' ? finish : start} />
     {phase === 'retry' && <>
-      <Button label={downloading ? 'Original wird vorbereitet…' : 'Originalaufnahme herunterladen'} kind="secondary" disabled={downloading} icon="download" onPress={async () => {
+      <Button label={downloading ? 'Preparing original…' : 'Download original recording'} kind="secondary" disabled={downloading} icon="download" onPress={async () => {
         if (!pendingUri.current || downloading) return;
         setDownloading(true);
         try { await saveRecording(pendingUri.current, `pete-${draft.id.slice(0, 8)}-${mode}`); }
-        catch (e) { setError(e instanceof Error ? e.message : 'Die Aufnahme konnte nicht heruntergeladen werden.'); }
+        catch (e) { setError(e instanceof Error ? e.message : 'Could not download the recording.'); }
         finally { setDownloading(false); }
       }} />
-      {discarding ? <View style={{ gap: 10 }}><Txt>Diese Aufnahme ist noch nicht beim Besucher gespeichert. Beim Verwerfen wird sie entfernt.</Txt><Button label="Aufnahme behalten" kind="secondary" onPress={() => setDiscarding(false)} /><Button label="Ungesicherte Aufnahme verwerfen" kind="danger" disabled={downloading} onPress={() => { pendingUri.current = null; lock(false); done(); }} /></View> : <Button label="Aufnahme verwerfen…" kind="quiet" disabled={downloading} onPress={() => setDiscarding(true)} />}
+      {discarding ? <View style={{ gap: 10 }}><Txt>This recording has not been saved to the visitor. Discarding removes this unsaved copy.</Txt><Button label="Keep this recording" kind="secondary" onPress={() => setDiscarding(false)} /><Button label="Discard unsaved recording" kind="danger" disabled={downloading} onPress={() => { pendingUri.current = null; lock(false); done(); }} /></View> : <Button label="Discard recording…" kind="quiet" disabled={downloading} onPress={() => setDiscarding(true)} />}
     </>}
-    <Txt style={{ color: colors.muted, fontSize: 16, lineHeight: 24 }}>{workspace.cloudEnabled ? 'Zuerst hier gesichert, dann in Company Cloud. Google transkribiert und ergänzt Angaben in der EU.' : workspace.supportedKinds.includes('voice') ? 'Hier gesichert. Euer Google-Dienst transkribiert und ergänzt Angaben in der EU.' : 'Hier gesichert. Transkription ist auf dieser Plattform nicht eingerichtet.'} Lass Pete bis zum Speichern geöffnet.</Txt>
+    <Txt style={{ color: colors.muted, fontSize: 16, lineHeight: 24 }}>{workspace.cloudEnabled ? 'Saved here first, then backed up to company cloud. Google in the EU transcribes and fills the draft.' : workspace.supportedKinds.includes('voice') ? 'Saved on this device. Your company’s Google service in the EU transcribes and fills the draft.' : 'Saved on this device. Transcription is not configured on this platform.'} Keep Pete open until saving finishes.</Txt>
   </>;
 }

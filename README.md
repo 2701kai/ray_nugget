@@ -10,9 +10,13 @@ may still be in progress. The repository remains `ray_nugget`; the app is named 
 
 ## Hosted pilot
 
+Pete uses US English, including sign-in, dates, and new clarification questions.
+German and English source material remain supported; extracted names and source
+quotes keep their original language. Existing saved content is not rewritten.
+
 Use **Continue with Google** and select your `@bevmaq.com` work account.
 Only verified company accounts can open the workspace or use transcription.
-Open the labelled **Settings** control and choose **Sign out** near the top,
+Open **Settings** and choose **Sign out** near the top,
 under your email. Mobile body text is 18 pixels, with labels and helper text at
 least 16 pixels and darker secondary text. Controls use compact 44px targets;
 the capture dock uses 48px buttons. Padding and repeated help text are reduced.
@@ -20,7 +24,7 @@ Web inputs keep the browser's editing buffer and focus during dictation and
 background updates. Manual forms save only edited fields, preserving details
 filled in the background while the form was open.
 A quiet version hint appears at the bottom of the workspace and sign-in screen;
-Settings shows the full build identifier. It identifies the page actually open,
+Settings shows the same numeric version. It identifies the page actually open,
 including a cached offline page, so an older tab cannot report a newer release.
 The Google account picker hints at the company domain;
 the application and API enforce it independently. Google sign-in with an existing
@@ -44,11 +48,11 @@ Drafts, notes, photos, and original recordings save **on this device first**.
 In the signed-in hosted app, Pete automatically backs up existing and new visitors
 to company GCP while open and online. A private EU bucket retains originals and
 versioned JSON details; the named Firestore database stores upload state and the
-latest confirmed copy. **In Company Cloud gesichert** appears only after originals
+latest confirmed copy. **Saved to company cloud** appears only after originals
 pass size/hash checks and the details are committed. Pending/offline/error states
 remain distinct. Reconnects resume saving; unchanged originals upload once.
 
-**Persönliche Cloud-Sicherungen** in **Einstellungen** opens a separate local
+**Personal cloud backups** in **Settings** opens a separate local
 copy under the same Google account. It lists up to 1,000 recent copies. Existing
 local drafts remain intact, and restored unfinished processing stays paused until
 explicitly retried. A `.pete` file is an optional portable snapshot through the
@@ -66,8 +70,8 @@ catalog is empty. Other company accounts do not inherit team access. Personal
 cloud routes remain scoped to the signed-in UID.
 
 New captures in the selected team workspace share automatically. Existing personal
-visitors only join via **Kontakt & Bedarf → In CIBUSTEC mit dem Team teilen**.
-The event picker also opens **Meine persönlichen Besuche**. Team metadata is
+visitors only join via **Details & request → Share with the CIBUSTEC team**.
+The event picker also opens **My personal visits**. Team metadata is
 listed while online (poll every 15 seconds); opening a visitor downloads originals
 with integrity checks for offline use. It does not pre-download every team's
 recording. The list currently returns at most 1,000 recent visitors.
@@ -80,7 +84,7 @@ replacing newer local edits. Portable pending jobs remain paused on another
 device; a source device keeps its pending work. Concurrent media with the same
 hash share cloud storage, while visitor identities are never guessed from names.
 
-Keep Pete open and online until **Im Team gesichert**. Team sharing is currently
+Keep Pete open and online until **Saved to team**. Team sharing is currently
 web-only; native devices, real iPhone dictation, screen lock and long recordings
 still need physical acceptance. Use `pete.bevmaq.com` consistently. This does not
 connect CRM, Ray matching or automatic messaging.
@@ -293,7 +297,7 @@ of automatically submitting a duplicate. That case needs an operation check.
 - The unauthenticated localhost preview keeps its conservative local contact/RFQ
   parser. Hosted interpretation does not run without company authentication. Older
   completed captures keep their prior review flow; no bulk reprocessing is triggered.
-- A dated German WhatsApp introduction preview with salesperson details and
+- A dated English WhatsApp introduction preview with salesperson details and
   recipient checks. Correcting contact details marks an existing preview outdated.
   Copying a preview is supported; opening WhatsApp and sending are not connected.
 - JSON metadata export, including notes, source text, provenance, and unresolved RFQ fields.
@@ -309,7 +313,7 @@ source text and correct OCR/transcription errors before applying details.
 
 Local data belongs to this installation/browser origin. Clearing site data or
 uninstalling removes those local records. In the hosted app, confirmed cloud
-copies remain recoverable through **Persönliche Cloud-Sicherungen**; captures still waiting
+copies remain recoverable through **Personal cloud backups**; captures still waiting
 to upload are not protected by that backup. Keep Pete open until cloud saving finishes.
 Save backup files separately before moving devices or clearing storage. A move
 from localhost to `pete.bevmaq.com` uses a different browser database.
@@ -321,16 +325,16 @@ Physical-phone capture quality and long-conversation endurance still need field 
 
 ## Back up and recover a visitor
 
-For an optional file export, in **Kontakt & Bedarf**, choose
-**Besucher als .pete-Datei exportieren → Backup-Datei speichern**. Keep the
+For an optional file export, in **Details & request**, choose
+**Download backup file → Save backup file**. Keep the
 `.pete` file in company file storage and check that the download/share completed.
 It includes customer details and original recordings and is not encrypted. Pete
 does not upload it automatically. This is a snapshot of one visitor; make a new
 backup after adding more information. Account credentials and personal settings
 are not included. The older JSON export remains a metadata-only handoff.
 
-On the destination device/origin, sign in and choose **Backup wiederherstellen** from **Einstellungen**. Select the file, check the visitor and original-file
-counts, then choose **Besucher wiederherstellen**. This works offline once Pete is cached and
+On the destination device/origin, sign in and choose **Restore a backup** from **Settings**. Select the file, check the visitor and original-file
+counts, then choose **Restore draft**. This works offline once Pete is cached and
 the account is signed in. Existing drafts are never overwritten. Importing the
 same file again opens its restored copy and preserves any edits to that copy.
 Different snapshots create separate copies; Pete does not merge them.

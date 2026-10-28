@@ -32,7 +32,7 @@ export function hostedHandler(jobs: ReturnType<typeof hostedJobs>, verify: (toke
       if (path.startsWith('/teams/')) {
         const match = path.match(/^\/teams\/([a-z0-9-]+)(\/.*)$/);
         const team = teams.find(t => t.id === match?.[1] && t.members.includes(identity.email!.toLowerCase()));
-        if (!team || !match) throw new ApiError('Dieser Team-Bereich ist für Dein Konto nicht freigegeben.', 403);
+        if (!team || !match) throw new ApiError('Your account does not have access to this team workspace.', 403);
         cloudOwner = createHash('sha256').update(`pete-team/${team.id}`).digest('hex');
         teamContext = { actor: identity.email!.toLowerCase(), event: team.name };
         path = `/cloud${match[2]}`;

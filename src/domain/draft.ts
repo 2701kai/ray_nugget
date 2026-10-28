@@ -76,15 +76,15 @@ export function createDraft(id: string, entry: CaptureKind, event: string, now: 
 }
 
 export function titleOf(draft: Draft): string {
-  return draft.contact.name || draft.contact.company || 'Neuer Kontakt';
+  return draft.contact.name || draft.contact.company || 'New visitor';
 }
 
 export function rfqGaps(request: Request): string[] {
   const gaps: string[] = [];
-  if (!request.product.trim()) gaps.push('Produkt');
-  if (!request.packaging.trim()) gaps.push('Behälter');
+  if (!request.product.trim()) gaps.push('Product');
+  if (!request.packaging.trim()) gaps.push('Container');
   const amount = request.throughput.trim().replace(',', '.');
-  if (!/^\d+(\.\d+)?$/.test(amount) || Number(amount) <= 0 || !Number.isFinite(Number(amount)) || !request.unit) gaps.push('Durchsatz + Einheit');
+  if (!/^\d+(\.\d+)?$/.test(amount) || Number(amount) <= 0 || !Number.isFinite(Number(amount)) || !request.unit) gaps.push('Throughput + unit');
   return gaps;
 }
 
@@ -100,11 +100,11 @@ function introduction(draft: Draft, sender: Sender, now: string) {
   const recipient = internationalPhone(draft.contact.phone);
   if (!sender.name.trim()) throw new Error('Add your name in Your details before preparing an introduction.');
   const senderPhone = internationalPhone(sender.phone);
-  const date = new Intl.DateTimeFormat('de-DE', { timeZone: 'Europe/Berlin' }).format(new Date(now));
-  const greeting = draft.contact.name.trim() ? `Hallo ${draft.contact.name.trim()},` : 'Hallo,';
-  const context = draft.event.trim() ? ` bei ${draft.event.trim()}` : '';
+  const date = new Intl.DateTimeFormat('en-US', { timeZone: 'Europe/Berlin' }).format(new Date(now));
+  const greeting = draft.contact.name.trim() ? `Hi ${draft.contact.name.trim()},` : 'Hi,';
+  const context = draft.event.trim() ? ` at ${draft.event.trim()}` : '';
   const signature = [sender.name.trim(), sender.company.trim(), senderPhone].filter(Boolean).join('\n');
-  return { recipient, message: `${greeting}\n\nvielen Dank für unser Gespräch${context} am ${date}. Hier sind meine Kontaktdaten. Weitere Informationen kannst Du mir gerne hier schicken.\n\n${signature}` };
+  return { recipient, message: `${greeting}\n\nThank you for our conversation${context} on ${date}. Here are my contact details. Feel free to send me any additional information here.\n\n${signature}` };
 }
 
 export function reduceDraft(draft: Draft, action: DraftAction, now: string): Draft {

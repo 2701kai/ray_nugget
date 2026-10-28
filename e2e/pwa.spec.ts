@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import config from '../app.json';
 
 test('installed shell reopens offline, keeps the selected visitor, and queues audio until reconnect', async ({ page, context }) => {
   await page.setViewportSize({ width: 390, height: 844 });
@@ -8,19 +9,19 @@ test('installed shell reopens offline, keeps the selected visitor, and queues au
     return route.fulfill({ json: { state: 'complete', text: 'Offline synthetic note.', engine: 'Browser fixture' }, headers: { 'Access-Control-Allow-Origin': 'http://localhost:8082' } });
   });
   await page.goto('/');
-  await page.getByRole('button', { name: 'Manuell erfassen', exact: true }).click();
-  await page.getByRole('button', { name: 'Kontakt eingeben', exact: true }).click();
+  await page.getByRole('button', { name: 'Enter manually', exact: true }).click();
+  await page.getByRole('button', { name: 'Capture contact', exact: true }).click();
   await page.getByLabel('Name', { exact: true }).fill('Offline visitor');
-  await page.getByRole('button', { name: 'Kontakt speichern', exact: true }).click();
+  await page.getByRole('button', { name: 'Save contact', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Offline visitor', exact: true })).toBeVisible();
   await page.evaluate(async () => { await navigator.serviceWorker.ready; });
   await expect.poll(() => page.evaluate(() => !!navigator.serviceWorker.controller)).toBe(true);
-  const version = page.getByText('Version 0.4.2', { exact: true });
+  const version = page.getByText(`Version ${config.expo.version}`, { exact: true });
   await expect(version).toBeVisible();
   await expect(version).toHaveCSS('font-size', '16px');
   const loadedVersion = await version.textContent();
   const metadata = await page.evaluate(() => ({ version: document.querySelector<HTMLMetaElement>('meta[name="pete-version"]')?.content, build: document.querySelector<HTMLMetaElement>('meta[name="pete-build"]')?.content }));
-  expect(metadata.version).toBe('0.4.2'); expect(metadata.build).toMatch(/^[a-f0-9]{16}$/);
+  expect(metadata.version).toBe(config.expo.version); expect(metadata.build).toMatch(/^[a-f0-9]{16}$/);
   expect(loadedVersion).toBe(`Version ${metadata.version}`);
   const manifest = await page.evaluate(async () => (await fetch(document.querySelector<HTMLLinkElement>('link[rel="manifest"]')!.href)).json());
   expect(manifest.display).toBe('standalone');
@@ -31,16 +32,16 @@ test('installed shell reopens offline, keeps the selected visitor, and queues au
   await context.setOffline(true);
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Offline visitor', exact: true })).toBeVisible();
-  await expect(page.getByText(/^Offline · Du kannst weiter erfassen/)).toBeVisible();
+  await expect(page.getByText(/^Offline · capture continues/)).toBeVisible();
   await expect(version).toHaveText(loadedVersion!);
-  await page.getByRole('button', { name: 'Notiz ergänzen', exact: true }).click();
-  await page.getByLabel('Notiz', { exact: true }).fill('Needs a glass bottle filler.');
-  await page.getByRole('button', { name: 'Notiz speichern', exact: true }).click();
+  await page.getByRole('button', { name: 'Add note', exact: true }).click();
+  await page.getByLabel('Note', { exact: true }).fill('Needs a glass bottle filler.');
+  await page.getByRole('button', { name: 'Save note', exact: true }).click();
   await expect(page.getByText('Needs a glass bottle filler.', { exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Sprachnotiz aufnehmen', exact: true }).click();
+  await page.getByRole('button', { name: 'Capture a voice note', exact: true }).click();
   await expect(page.getByText(/^00:0[1-3]$/)).toBeVisible();
-  await page.getByRole('button', { name: 'Stoppen und speichern', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Aufnahme abspielen', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Stop and save recording', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Play recording', exact: true })).toBeVisible();
   const jobs = await page.evaluate(async () => {
     const db = await new Promise<IDBDatabase>((resolve, reject) => { const r = indexedDB.open('ray-nugget-v1'); r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error); });
     const result = await new Promise<any[]>((resolve, reject) => { const r = db.transaction('jobs').objectStore('jobs').getAll(); r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error); });
@@ -51,9 +52,9 @@ test('installed shell reopens offline, keeps the selected visitor, and queues au
   expect(transcriptions).toBe(0);
   await page.reload();
   await expect(page.getByText('Needs a glass bottle filler.', { exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Aufnahme abspielen', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Play recording', exact: true })).toBeVisible();
   await context.setOffline(false);
-  await expect(page.getByRole('button', { name: 'Erkannten Text prüfen', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Review extracted text', exact: true })).toBeVisible();
   expect(transcriptions).toBeGreaterThan(0);
   const allCached = await page.evaluate(async () => (await Promise.all((await caches.keys()).map(async key => (await (await caches.open(key)).keys()).map(r => r.url)))).flat());
   expect(allCached.some(url => url.includes(':8091') || url.includes('transcriptions'))).toBe(false);

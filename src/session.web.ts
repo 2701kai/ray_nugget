@@ -16,8 +16,9 @@ export async function signInWithGoogle() {
   if (!auth) return;
   const provider = new GoogleAuthProvider();
   // Account-picker hint only. UI and API still enforce the company domain.
-  provider.setCustomParameters({ hd: 'bevmaq.com', prompt: 'select_account' });
-  auth.useDeviceLanguage();
+  // Firebase 13 does not forward languageCode into Google's redirect parameters.
+  provider.setCustomParameters({ hd: 'bevmaq.com', prompt: 'select_account', hl: 'en-US' });
+  auth.languageCode = 'en-US';
   await signInWithRedirect(auth, provider);
 }
 export const finishGoogleSignIn = async () => { if (auth) await getRedirectResult(auth); };

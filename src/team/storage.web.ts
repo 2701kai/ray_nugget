@@ -30,9 +30,9 @@ export async function openTeamStorage(name: string) {
     async share(id: string, team: Team) {
       const tx = db.transaction(['drafts', 'settings'], 'readwrite');
       const draft: Draft | undefined = await tx.objectStore('drafts').get(id);
-      if (!draft) throw new Error('Der Besucher ist nicht mehr vorhanden.');
+      if (!draft) throw new Error('This visitor is no longer available.');
       const existing: TeamLink | undefined = await tx.objectStore('settings').get(key(id));
-      if (existing && existing.teamId !== team.id) throw new Error('Dieser Besucher gehört bereits zu einem Team-Bereich.');
+      if (existing && existing.teamId !== team.id) throw new Error('This visitor already belongs to a team workspace.');
       if (!existing) {
         await tx.objectStore('drafts').put({ ...draft, event: team.name, revision: draft.revision + 1, updatedAt: new Date().toISOString() });
         await tx.objectStore('settings').put({ teamId: team.id }, key(id));
@@ -50,7 +50,7 @@ export async function openTeamStorage(name: string) {
           const original = originals.find(m => m.attachmentId === a.id);
           const mediaKey = `${snapshot.draft.id}:${a.id}`;
           if (original) await tx.objectStore('media').put(original.bytes.slice(), mediaKey);
-          else if (!(await tx.objectStore('media').get(mediaKey))) throw new Error('Ein Original fehlt. Dein bisheriger Stand bleibt erhalten.');
+          else if (!(await tx.objectStore('media').get(mediaKey))) throw new Error('An original file is missing. Your saved work is kept.');
         }
         await tx.objectStore('drafts').put(snapshot.draft);
         for (const job of snapshot.jobs) {

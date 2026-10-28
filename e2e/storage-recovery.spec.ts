@@ -36,10 +36,10 @@ async function injectFailure(page: Page, mode: 'index' | 'all' | 'off') {
 }
 
 async function newVisitor(page: Page) {
-  await page.getByRole('button', { name: 'Manuell erfassen', exact: true }).click();
-  await page.getByRole('button', { name: 'Kontakt eingeben', exact: true }).click();
+  await page.getByRole('button', { name: 'Enter manually', exact: true }).click();
+  await page.getByRole('button', { name: 'Capture contact', exact: true }).click();
   await page.getByLabel('Name', { exact: true }).fill('Safari recovery visitor');
-  await page.getByRole('button', { name: 'Kontakt speichern', exact: true }).click();
+  await page.getByRole('button', { name: 'Save contact', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Safari recovery visitor', exact: true })).toBeVisible();
 }
 
@@ -51,10 +51,10 @@ test('reported index failure falls back without blocking capture and keeps origi
   await injectFailure(page, 'index');
   await page.goto('/');
   await expect.poll(() => page.evaluate(() => (window as any).__storageFault.failures)).toBeGreaterThan(0);
-  await expect(page.getByRole('button', { name: 'Lokalen Speicher erneut öffnen', exact: true })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Neuer Besucher', exact: true })).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'Retry local storage', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'New visitor', exact: true })).toBeEnabled();
   await newVisitor(page);
-  await page.getByRole('button', { name: 'Visitenkarte aufnehmen', exact: true }).click();
+  await page.getByRole('button', { name: 'Capture business card', exact: true }).click();
   const png = await page.evaluate(() => {
     const canvas = document.createElement('canvas'); canvas.width = 800; canvas.height = 250;
     const ctx = canvas.getContext('2d')!; ctx.fillStyle = 'white'; ctx.fillRect(0, 0, 800, 250);
@@ -62,39 +62,39 @@ test('reported index failure falls back without blocking capture and keeps origi
     return canvas.toDataURL('image/png').split(',')[1];
   });
   const chooser = page.waitForEvent('filechooser');
-  await page.getByRole('button', { name: 'Kartenfoto auswählen', exact: true }).click();
+  await page.getByRole('button', { name: 'Choose a card photo', exact: true }).click();
   await (await chooser).setFiles({ name: 'safari-card.png', mimeType: 'image/png', buffer: Buffer.from(png, 'base64') });
-  await expect(page.getByRole('button', { name: /^(Erkannten Text prüfen|Änderungsvorschläge prüfen)$/ })).toBeVisible({ timeout: 45000 });
-  await page.getByRole('button', { name: /^(Erkannten Text prüfen|Änderungsvorschläge prüfen)$/ }).click();
-  const chooseFields = page.getByRole('button', { name: 'Quelle und Feldauswahl öffnen', exact: true });
+  await expect(page.getByRole('button', { name: /^(Review extracted text|Check suggested changes)$/ })).toBeVisible({ timeout: 45000 });
+  await page.getByRole('button', { name: /^(Review extracted text|Check suggested changes)$/ }).click();
+  const chooseFields = page.getByRole('button', { name: 'View source and choose fields', exact: true });
   if (await chooseFields.isVisible()) await chooseFields.click();
   await expect(page.getByText('safari@example.test', { exact: true }).last()).toBeVisible();
-  await page.getByRole('checkbox', { name: 'E-Mail übernehmen', exact: true }).check();
-  await page.getByRole('button', { name: 'Ausgewählte Angaben übernehmen', exact: true }).click();
-  await expect(page.getByText('Geprüft · Quelltext bleibt erhalten', { exact: true })).toBeVisible();
+  await page.getByRole('checkbox', { name: 'Use Email', exact: true }).check();
+  await page.getByRole('button', { name: 'Apply selected details', exact: true }).click();
+  await expect(page.getByText('Reviewed · source text kept', { exact: true })).toBeVisible();
   await expect.poll(() => page.evaluate(() => (window as any).__storageFault.scanReads)).toBeGreaterThan(0);
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Safari recovery visitor', exact: true })).toBeVisible();
   await expect(page.getByRole('img', { name: 'safari-card.png', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Kontakt & Bedarf', exact: true }).click();
+  await page.getByRole('button', { name: 'Details & request', exact: true }).click();
   await expect(page.getByText('safari@example.test', { exact: true }).last()).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Lokalen Speicher erneut öffnen', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Retry local storage', exact: true })).toHaveCount(0);
 });
 
 test('ongoing background queue errors leave capture usable and clear automatically after recovery', async ({ page }) => {
   await injectFailure(page, 'off');
   await page.goto('/'); await newVisitor(page);
   await page.evaluate(() => { (window as any).__storageFault.mode = 'all'; });
-  await expect(page.getByText('Die Verarbeitung pausiert. Du kannst weiter erfassen; Pete versucht es erneut.', { exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Lokalen Speicher erneut öffnen', exact: true })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Neuer Besucher', exact: true })).toBeEnabled();
-  await page.getByRole('button', { name: 'Notiz ergänzen', exact: true }).click();
-  await page.getByLabel('Notiz', { exact: true }).fill('Saved while queue reads were unavailable.');
-  await page.getByRole('button', { name: 'Notiz speichern', exact: true }).click();
+  await expect(page.getByText('Background processing is paused. You can keep capturing; Pete will retry.', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Retry local storage', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'New visitor', exact: true })).toBeEnabled();
+  await page.getByRole('button', { name: 'Add note', exact: true }).click();
+  await page.getByLabel('Note', { exact: true }).fill('Saved while queue reads were unavailable.');
+  await page.getByRole('button', { name: 'Save note', exact: true }).click();
   await expect(page.getByText('Saved while queue reads were unavailable.', { exact: true })).toBeVisible();
   await page.evaluate(() => { (window as any).__storageFault.mode = 'off'; });
-  await expect(page.getByText('Die Verarbeitung pausiert. Du kannst weiter erfassen; Pete versucht es erneut.', { exact: true })).toHaveCount(0);
+  await expect(page.getByText('Background processing is paused. You can keep capturing; Pete will retry.', { exact: true })).toHaveCount(0);
   await page.reload();
   await expect(page.getByText('Saved while queue reads were unavailable.', { exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Lokalen Speicher erneut öffnen', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Retry local storage', exact: true })).toHaveCount(0);
 });
