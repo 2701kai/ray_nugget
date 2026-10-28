@@ -76,15 +76,15 @@ export function createDraft(id: string, entry: CaptureKind, event: string, now: 
 }
 
 export function titleOf(draft: Draft): string {
-  return draft.contact.name || draft.contact.company || 'Untitled visitor';
+  return draft.contact.name || draft.contact.company || 'Neuer Kontakt';
 }
 
 export function rfqGaps(request: Request): string[] {
   const gaps: string[] = [];
-  if (!request.product.trim()) gaps.push('Product');
-  if (!request.packaging.trim()) gaps.push('Container');
+  if (!request.product.trim()) gaps.push('Produkt');
+  if (!request.packaging.trim()) gaps.push('Behälter');
   const amount = request.throughput.trim().replace(',', '.');
-  if (!/^\d+(\.\d+)?$/.test(amount) || Number(amount) <= 0 || !Number.isFinite(Number(amount)) || !request.unit) gaps.push('Throughput + unit');
+  if (!/^\d+(\.\d+)?$/.test(amount) || Number(amount) <= 0 || !Number.isFinite(Number(amount)) || !request.unit) gaps.push('Durchsatz + Einheit');
   return gaps;
 }
 
@@ -104,7 +104,7 @@ function introduction(draft: Draft, sender: Sender, now: string) {
   const greeting = draft.contact.name.trim() ? `Hallo ${draft.contact.name.trim()},` : 'Hallo,';
   const context = draft.event.trim() ? ` bei ${draft.event.trim()}` : '';
   const signature = [sender.name.trim(), sender.company.trim(), senderPhone].filter(Boolean).join('\n');
-  return { recipient, message: `${greeting}\n\nvielen Dank für unser Gespräch${context} am ${date}. Hier sind meine Kontaktdaten. Weitere Informationen können Sie mir gerne hier schicken.\n\n${signature}` };
+  return { recipient, message: `${greeting}\n\nvielen Dank für unser Gespräch${context} am ${date}. Hier sind meine Kontaktdaten. Weitere Informationen kannst Du mir gerne hier schicken.\n\n${signature}` };
 }
 
 export function reduceDraft(draft: Draft, action: DraftAction, now: string): Draft {

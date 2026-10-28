@@ -2,7 +2,7 @@ import type { Draft, DraftAction, Sender } from '../domain/draft';
 import type { ProcessingRepository } from '../processing/jobs';
 import type { BackupSnapshot, VerifiedBackup } from '../backup/archive';
 
-export type Preferences = { sender: Sender; event: string };
+export type Preferences = { sender: Sender; event: string; workspaceScope?: string };
 export const defaultPreferences: Preferences = { sender: { name: '', company: 'BEVMAQ', phone: '' }, event: '' };
 export interface DraftRepository extends ProcessingRepository {
   list(): Promise<Draft[]>;

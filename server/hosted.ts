@@ -23,9 +23,9 @@ const details = process.env.PETE_DETAILS_MODEL ? detailService(firestoreStore(db
 const backupBucket = process.env.PETE_BACKUP_BUCKET;
 if (backupBucket === bucket) throw new Error('Cloud originals need a persistent bucket, separate from temporary speech uploads.');
 const backups = backupBucket ? cloudBackups(firestoreStore(db), hostedStorage(project, backupBucket), async owner => {
-  const result = await db.collection(`cloudOwners/${owner}/drafts`).orderBy('savedAt', 'desc').limit(200).get();
+  const result = await db.collection(`cloudOwners/${owner}/drafts`).orderBy('savedAt', 'desc').limit(1000).get();
   return result.docs.map(doc => doc.data() as CloudCopy);
 }) : undefined;
-const handler = hostedHandler(jobs, token => getAuth(app).verifyIdToken(token), origins, `Google Speech-to-Text V2 · ${model} · ${location}`, details, backups);
+const handler = hostedHandler(jobs, token => getAuth(app).verifyIdToken(token), origins, `Google Speech-to-Text V2 · ${model} · ${location}`, details, backups, process.env.PETE_TEAM_MEMBERS ? [{ id: 'cibustec-2026', name: 'CIBUSTEC', members: process.env.PETE_TEAM_MEMBERS.split(',').map((value: string) => value.trim().toLowerCase()).filter(Boolean) }] : []);
 Bun.serve({ hostname: '0.0.0.0', port: Number(process.env.PORT || 8080), maxRequestBodySize: 4_500_000, idleTimeout: 120, fetch: handler });
 console.log('Pete hosted API ready. Company authentication is required.');

@@ -12,9 +12,9 @@ test.beforeEach(async ({ page }) => {
 });
 async function begin(page: Page) {
   await page.goto('/');
-  await page.getByRole('button', { name: 'Capture a voice note', exact: true }).click();
+  await page.getByRole('button', { name: 'Sprachnotiz aufnehmen', exact: true }).click();
   await expect(page.getByText(/^00:0[1-3]$/)).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Close', exact: true })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Schließen', exact: true })).toBeDisabled();
 }
 async function originals(page: Page) {
   return page.evaluate(async () => {
@@ -31,27 +31,27 @@ async function micStopped(page: Page) {
 test('a disconnected microphone preserves final audio and releases the microphone', async ({ page }) => {
   await begin(page);
   await page.evaluate(() => { for (const stream of (window as any).__audioStreams as MediaStream[]) for (const track of stream.getTracks()) { track.stop(); track.dispatchEvent(new Event('ended')); } });
-  await expect(page.getByRole('button', { name: 'Play recording', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Aufnahme abspielen', exact: true })).toBeVisible();
   await micStopped(page);
   const saved = await originals(page);
   expect(saved.sizes).toHaveLength(1); expect(saved.sizes[0]).toBeGreaterThan(0);
   expect(saved.jobs[0].draftId).toBe(saved.drafts[0].id);
   expect(saved.hashes[0]).toBe(saved.drafts[0].attachments[0].sha256);
-  await page.reload(); await page.getByRole('button', { name: 'Play recording', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Pause recording', exact: true })).toBeVisible();
+  await page.reload(); await page.getByRole('button', { name: 'Aufnahme abspielen', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Aufnahme pausieren', exact: true })).toBeVisible();
 });
 
 test('leaving the visible app saves once and keeps the capture with its visitor', async ({ page }) => {
   await begin(page);
   await page.evaluate(() => { Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' }); document.dispatchEvent(new Event('visibilitychange')); });
-  await expect(page.getByRole('button', { name: 'Play recording', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Aufnahme abspielen', exact: true })).toBeVisible();
   await micStopped(page);
   await page.evaluate(() => { Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' }); document.dispatchEvent(new Event('visibilitychange')); });
   const saved = await originals(page);
   expect(saved.jobs).toHaveLength(1); expect(saved.sizes).toHaveLength(1);
   expect(saved.jobs[0].attachmentId).toBe(saved.drafts[0].attachments[0].id);
-  await page.getByRole('button', { name: 'New visitor', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Play recording', exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Neuer Besucher', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Aufnahme abspielen', exact: true })).toHaveCount(0);
   expect((await originals(page)).sizes).toHaveLength(1);
 });
 
@@ -64,24 +64,24 @@ test('failed storage save keeps the original for download and retry; Close canno
       return add.apply(this, args as [any, IDBValidKey?]);
     };
   });
-  await begin(page); await page.getByRole('button', { name: 'Stop and save recording', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Retry saving recording', exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Close', exact: true })).toBeDisabled();
-  await expect(page.getByText('Not saved yet · keep this page open', { exact: true })).toBeVisible();
+  await begin(page); await page.getByRole('button', { name: 'Stoppen und speichern', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Aufnahme erneut speichern', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Schließen', exact: true })).toBeDisabled();
+  await expect(page.getByText('Noch nicht gespeichert · lass diese Seite offen', { exact: true })).toBeVisible();
   expect((await originals(page)).jobs).toHaveLength(0); await micStopped(page);
   expect(await page.evaluate(() => !window.dispatchEvent(new Event('beforeunload', { cancelable: true })))).toBe(true);
-  const download = page.waitForEvent('download'); await page.getByRole('button', { name: 'Download original recording', exact: true }).click();
+  const download = page.waitForEvent('download'); await page.getByRole('button', { name: 'Originalaufnahme herunterladen', exact: true }).click();
   const file = await download; const chunks: Buffer[] = [];
   for await (const chunk of (await file.createReadStream())!) chunks.push(Buffer.from(chunk));
   const bytes = Buffer.concat(chunks); expect(bytes.length).toBeGreaterThan(0);
   expect(file.suggestedFilename()).toMatch(/^pete-.*-memo\.webm$/);
   await page.screenshot({ path: test.info().outputPath('recover-unsaved-recording.png'), animations: 'disabled' });
   await page.evaluate(() => { (window as any).__rejectAudioSave = false; });
-  await page.getByRole('button', { name: 'Retry saving recording', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Play recording', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Aufnahme erneut speichern', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Aufnahme abspielen', exact: true })).toBeVisible();
   const saved = await originals(page);
   expect(saved.jobs).toHaveLength(1); expect(saved.sizes).toEqual([bytes.length]);
   expect(saved.hashes).toEqual([createHash('sha256').update(bytes).digest('hex')]);
   expect(await page.evaluate(() => window.dispatchEvent(new Event('beforeunload', { cancelable: true })))).toBe(true);
-  await page.reload(); await expect(page.getByRole('button', { name: 'Play recording', exact: true })).toBeVisible();
+  await page.reload(); await expect(page.getByRole('button', { name: 'Aufnahme abspielen', exact: true })).toBeVisible();
 });

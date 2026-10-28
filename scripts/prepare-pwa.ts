@@ -12,7 +12,7 @@ html = html.replace('</head>', `<link rel="manifest" href="/manifest.webmanifest
 <meta name="theme-color" content="#365C49">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Pete">
-<style>html,body,#root{height:100%;height:100dvh;overflow:hidden}body{overscroll-behavior:none}</style>
+<style>html,body,#root{height:100%;height:100dvh;overflow:hidden}body{overscroll-behavior:none;position:fixed;width:100%;inset:0}</style>
 </head>`);
 await Bun.write(htmlFile, html);
 const paths = (await Array.fromAsync(new Bun.Glob('**/*').scan({ cwd: output, onlyFiles: true })))

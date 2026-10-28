@@ -12,7 +12,7 @@ export type ReviewChange = {
   request?: RequestReview;
   superseded: boolean;
 };
-const contactLabels = { name: 'Full name', company: 'Company', email: 'Email', phone: 'Mobile number' };
+const contactLabels = { name: 'Name', company: 'Firma', email: 'E-Mail', phone: 'Mobilnummer' };
 
 // Compare a capture to the latest source/human decision, not processing completion
 // order: an older recording can finish after a newer correction was accepted.
@@ -43,12 +43,12 @@ export function reviewChanges(draft: Draft, job: ProcessingJob): ReviewChange[] 
     const value = request[field];
     if (!value || value === draft.request[field]) continue;
     const key = `request.${field}` as const;
-    const display = (v: string) => field === 'intent' ? v === 'buy' ? 'Buying' : v === 'sell' ? 'Selling' : 'Not specified' : v;
-    changes.push({ key, label: { intent: 'Buying or selling', product: 'Product to fill', packaging: 'Container / packaging' }[field], saved: display(draft.request[field]) || (draft.provenance[key] ? 'Left blank intentionally' : 'Not added yet'), proposed: display(value), evidence: result.evidence?.[key] || (field !== 'intent' ? legacy?.[field]?.evidence : undefined), request: { [field]: value }, superseded: newerDecision(draft, job, key) });
+    const display = (v: string) => field === 'intent' ? v === 'buy' ? 'Kaufen' : v === 'sell' ? 'Verkaufen' : 'Noch offen' : v;
+    changes.push({ key, label: { intent: 'Buying or selling', product: 'Product to fill', packaging: 'Behälter / Verpackung' }[field], saved: display(draft.request[field]) || (draft.provenance[key] ? 'Left blank intentionally' : 'Not added yet'), proposed: display(value), evidence: result.evidence?.[key] || (field !== 'intent' ? legacy?.[field]?.evidence : undefined), request: { [field]: value }, superseded: newerDecision(draft, job, key) });
   }
   const capacity = request.capacity;
   if (capacity && (capacity.throughput !== draft.request.throughput || capacity.unit !== draft.request.unit)) {
-    changes.push({ key: 'request.capacity', label: 'Throughput', saved: `${draft.request.throughput} ${draft.request.unit}`.trim() || (draft.provenance['request.throughput'] || draft.provenance['request.unit'] ? 'Left blank intentionally' : 'Not added yet'), proposed: `${capacity.throughput} ${capacity.unit}`, evidence: result.evidence?.['request.throughput'] || legacy?.capacity?.evidence, request: { capacity }, superseded: newerDecision(draft, job, 'request.throughput') || newerDecision(draft, job, 'request.unit') });
+    changes.push({ key: 'request.capacity', label: 'Durchsatz', saved: `${draft.request.throughput} ${draft.request.unit}`.trim() || (draft.provenance['request.throughput'] || draft.provenance['request.unit'] ? 'Left blank intentionally' : 'Not added yet'), proposed: `${capacity.throughput} ${capacity.unit}`, evidence: result.evidence?.['request.throughput'] || legacy?.capacity?.evidence, request: { capacity }, superseded: newerDecision(draft, job, 'request.throughput') || newerDecision(draft, job, 'request.unit') });
   }
   return changes;
 }

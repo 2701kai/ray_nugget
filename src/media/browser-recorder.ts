@@ -55,7 +55,7 @@ export class BrowserRecorder implements CaptureRecorder {
       }, { once: true });
     } catch (error) {
       stream?.getTracks().forEach(track => track.stop());
-      if (error instanceof DOMException && ['NotAllowedError', 'PermissionDeniedError'].includes(error.name)) throw new Error('Microphone access is off. Allow it in device or browser settings, then try again.');
+      if (error instanceof DOMException && ['NotAllowedError', 'PermissionDeniedError'].includes(error.name)) throw new Error('Mikrofonzugriff fehlt. Erlaube ihn in den Geräte- oder Browser-Einstellungen.');
       throw error;
     }
   }

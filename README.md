@@ -44,26 +44,54 @@ Drafts, notes, photos, and original recordings save **on this device first**.
 In the signed-in hosted app, Pete automatically backs up existing and new visitors
 to company GCP while open and online. A private EU bucket retains originals and
 versioned JSON details; the named Firestore database stores upload state and the
-latest confirmed copy. **Saved to company cloud** appears only after originals
+latest confirmed copy. **In Company Cloud gesichert** appears only after originals
 pass size/hash checks and the details are committed. Pending/offline/error states
 remain distinct. Reconnects resume saving; unchanged originals upload once.
 
-**Cloud saved visitors**, available from the draft list or Settings, opens a
-separate local copy under the same Google account, with original media and source
-text. It lists the 200 most recently saved copies. Existing local drafts remain
-intact; this is automatic backup, not simultaneous cross-device editing. Restored
-unfinished processing stays paused until explicitly retried. Localhost remains
-local-only, and each origin has separate local storage. A `.pete` file is an
-optional manual export through the phone's file picker, not the GCP save path.
-Use `pete.bevmaq.com` consistently for the hosted workspace.
+**Persönliche Cloud-Sicherungen** in **Einstellungen** opens a separate local
+copy under the same Google account. It lists up to 1,000 recent copies. Existing
+local drafts remain intact, and restored unfinished processing stays paused until
+explicitly retried. A `.pete` file is an optional portable snapshot through the
+phone's file picker, independent of automatic GCP saving. It includes original
+media and versioned metadata; it is not a ZIP or an encrypted container. Existing
+v1 files remain supported. Localhost stays local-only.
+
+### Shared CIBUSTEC pilot
+
+The hosted **CIBUSTEC** workspace shares visitor records and original media among
+an explicit server-side list of verified company Google accounts. Configure the
+comma-separated `PETE_TEAM_MEMBERS` at deployment; do not commit personal account
+addresses or include them in the public web build. Without this setting the team
+catalog is empty. Other company accounts do not inherit team access. Personal
+cloud routes remain scoped to the signed-in UID.
+
+New captures in the selected team workspace share automatically. Existing personal
+visitors only join via **Kontakt & Bedarf → In CIBUSTEC mit dem Team teilen**.
+The event picker also opens **Meine persönlichen Besuche**. Team metadata is
+listed while online (poll every 15 seconds); opening a visitor downloads originals
+with integrity checks for offline use. It does not pre-download every team's
+recording. The list currently returns at most 1,000 recent visitors.
+
+Copies keep the same visitor/source IDs, with an atomic local baseline and a
+server fingerprint precondition. Separate edits and append-only notes/sources
+merge; conflicting fields require an explicit local/team choice. Throughput and
+unit stay paired. Changes made during a download prevent that response from
+replacing newer local edits. Portable pending jobs remain paused on another
+device; a source device keeps its pending work. Concurrent media with the same
+hash share cloud storage, while visitor identities are never guessed from names.
+
+Keep Pete open and online until **Im Team gesichert**. Team sharing is currently
+web-only; native devices, real iPhone dictation, screen lock and long recordings
+still need physical acceptance. Use `pete.bevmaq.com` consistently. This does not
+connect CRM, Ray matching or automatic messaging.
 
 Cloud originals use `bevmaq-platform-pete-originals`, separate from the temporary
 speech bucket and its one-day deletion rule. No automatic expiry is configured
 for cloud copies; bucket soft deletion retains deleted objects for seven days.
-Uploads are capped at 1 GiB per account / 5 GiB total per UTC day, with existing
+Uploads are capped at 1 GiB per storage scope (personal account or shared team) / 5 GiB total per UTC day, with existing
 per-original limits and a 128 MiB portable visitor limit. Large originals restore
 in authenticated 4 MiB parts with a final hash check. Company Google SSO and
-owner isolation apply to every cloud route. Runtime bucket access is limited to
+owner isolation apply to personal routes; explicit membership applies to team routes. Runtime bucket access is limited to
 the Pete service account; exact browser origins are in `deploy/storage-cors.json`.
 Pilot transcription is capped at 40 new attempts per account and 200 total per UTC
 day, with 60 MiB per recording. Processing needs Pete open and connected to submit
@@ -265,7 +293,7 @@ source text and correct OCR/transcription errors before applying details.
 
 Local data belongs to this installation/browser origin. Clearing site data or
 uninstalling removes those local records. In the hosted app, confirmed cloud
-copies remain recoverable through **Cloud saved visitors**; captures still waiting
+copies remain recoverable through **Persönliche Cloud-Sicherungen**; captures still waiting
 to upload are not protected by that backup. Keep Pete open until cloud saving finishes.
 Save backup files separately before moving devices or clearing storage. A move
 from localhost to `pete.bevmaq.com` uses a different browser database.
@@ -277,23 +305,22 @@ Physical-phone capture quality and long-conversation endurance still need field 
 
 ## Back up and recover a visitor
 
-For an optional file export, in **Details & request**, choose
-**Download backup file → Save backup file**. Keep the
+For an optional file export, in **Kontakt & Bedarf**, choose
+**Besucher als .pete-Datei exportieren → Backup-Datei speichern**. Keep the
 `.pete` file in company file storage and check that the download/share completed.
 It includes customer details and original recordings and is not encrypted. Pete
 does not upload it automatically. This is a snapshot of one visitor; make a new
 backup after adding more information. Account credentials and personal settings
 are not included. The older JSON export remains a metadata-only handoff.
 
-On the destination device/origin, sign in and choose **Restore a backup** from the
-draft list or Your details. Select the file, check the visitor and original-file
-counts, then choose **Restore draft**. This works offline once Pete is cached and
+On the destination device/origin, sign in and choose **Backup wiederherstellen** from **Einstellungen**. Select the file, check the visitor and original-file
+counts, then choose **Besucher wiederherstellen**. This works offline once Pete is cached and
 the account is signed in. Existing drafts are never overwritten. Importing the
 same file again opens its restored copy and preserves any edits to that copy.
 Different snapshots create separate copies; Pete does not merge them.
 
 Completed source text and review state travel with the originals. Unfinished
-processing stays paused after restore until **Retry processing** is selected;
+processing stays paused after restore until **Verarbeitung wiederholen** is selected;
 retrying audio can submit a new paid transcription. Introduction previews are
 marked outdated so they can be prepared with the destination user's details.
 

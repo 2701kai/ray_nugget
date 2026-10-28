@@ -9,11 +9,11 @@ import { colors } from './theme';
 
 function signInError(error: unknown) {
   const code = (error as { code?: string })?.code;
-  if (code === 'auth/network-request-failed') return 'Connect to the internet to sign in with Google.';
-  if (code === 'auth/too-many-requests') return 'Too many attempts. Wait a little before trying again.';
-  if (code === 'auth/account-exists-with-different-credential') return 'This email already has an account. Contact BEVMAQ support to connect Google and keep your existing drafts.';
-  if (code === 'auth/operation-not-allowed' || code === 'auth/unauthorized-domain') return 'Google sign-in is temporarily unavailable. Please try again shortly.';
-  return 'Google sign-in did not finish. Please try again with your BEVMAQ account.';
+  if (code === 'auth/network-request-failed') return 'Verbinde Dich zum Anmelden mit dem Internet.';
+  if (code === 'auth/too-many-requests') return 'Zu viele Versuche. Warte kurz und versuche es erneut.';
+  if (code === 'auth/account-exists-with-different-credential') return 'Für diese E-Mail gibt es bereits ein Konto. BEVMAQ-Support kann die Google-Anmeldung verbinden und Deine Daten erhalten.';
+  if (code === 'auth/operation-not-allowed' || code === 'auth/unauthorized-domain') return 'Google-Anmeldung ist gerade nicht erreichbar. Versuche es gleich erneut.';
+  return 'Die Anmeldung wurde nicht abgeschlossen. Versuche es mit Deinem BEVMAQ-Konto erneut.';
 }
 
 export function AuthGate({ children }: { children: ReactNode }) {
@@ -43,13 +43,13 @@ export function AuthGate({ children }: { children: ReactNode }) {
   return <ScrollView style={{ flex: 1, backgroundColor: colors.background }} contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', padding: 24 }} keyboardShouldPersistTaps="handled">
     <View style={{ width: '100%', maxWidth: 440, alignSelf: 'center', gap: 20 }}>
       <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}><PeteMark size={44} /><Txt weight="extra" style={{ fontSize: 34 }}>pete.</Txt></View>
-      <Txt accessibilityRole="header" weight="bold" style={{ fontSize: 27, lineHeight: 36 }}>{!ready ? 'Opening your workspace…' : user ? 'Use your work account.' : 'Pick up the conversation.'}</Txt>
+      <Txt accessibilityRole="header" weight="bold" style={{ fontSize: 27, lineHeight: 36 }}>{!ready ? 'Dein Arbeitsbereich wird geöffnet…' : user ? 'Nutze Dein Firmenkonto.' : 'Dein nächstes Gespräch.'}</Txt>
       {!ready ? <View style={{ height: 160, borderRadius: 16, backgroundColor: colors.sage }} /> : <>
-        <Txt style={{ color: colors.muted }}>{user ? `${user.email || 'This Google account'} cannot open Pete. Choose your @bevmaq.com Google account.` : 'Sign in with your @bevmaq.com Google account. Your captures stay with your account on this device.'}</Txt>
-        <Button label={busy ? 'Opening Google…' : user ? 'Use another Google account' : 'Continue with Google'} disabled={busy} onPress={() => { void signIn(); }} />
+        <Txt style={{ color: colors.muted }}>{user ? `${user.email || 'Dieses Google-Konto'} hat keinen Zugriff auf Pete. Wähle Dein Google-Konto von BEVMAQ.` : 'Melde Dich mit Deinem Google-Konto von BEVMAQ an.'}</Txt>
+        <Button label={busy ? 'Google wird geöffnet…' : user ? 'Anderes Google-Konto wählen' : 'Mit Google anmelden'} disabled={busy} onPress={() => { void signIn(); }} />
       </>}
       <ErrorNotice message={error} />
-      <Txt style={{ fontSize: 16, lineHeight: 24, color: colors.muted }}>For the BEVMAQ team. Once signed in, saved drafts and captures are available offline on this device.</Txt>
+      <Txt style={{ fontSize: 16, lineHeight: 24, color: colors.muted }}>Für das BEVMAQ-Team. Bereits geöffnete Besucher und Aufnahmen bleiben auf diesem Gerät offline verfügbar.</Txt>
       <VersionHint />
     </View>
   </ScrollView>;

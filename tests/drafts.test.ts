@@ -10,12 +10,12 @@ describe('draft lifecycle', () => {
     for (const entry of ['contact', 'card', 'voice', 'request'] as const) {
       const draft = createDraft(entry, entry, 'Synthetic Fair', now);
       expect(draft.entry).toBe(entry);
-      expect(rfqGaps(draft.request)).toEqual(['Product', 'Container', 'Throughput + unit']);
+      expect(rfqGaps(draft.request)).toEqual(['Produkt', 'Behälter', 'Durchsatz + Einheit']);
     }
     const draft = reduceDraft(createDraft('a', 'request', '', now), { type: 'edit', patch: { request: { product: 'Juice', packaging: 'Glass', throughput: '2400', unit: 'bottles/h' } } }, now);
     expect(rfqGaps(draft.request)).toEqual([]);
-    expect(rfqGaps({ ...draft.request, throughput: '-5' })).toEqual(['Throughput + unit']);
-    expect(rfqGaps({ ...draft.request, unit: '' })).toEqual(['Throughput + unit']);
+    expect(rfqGaps({ ...draft.request, throughput: '-5' })).toEqual(['Durchsatz + Einheit']);
+    expect(rfqGaps({ ...draft.request, unit: '' })).toEqual(['Durchsatz + Einheit']);
   });
 
   test('late extraction preserves manual corrections, including deliberately cleared values', () => {

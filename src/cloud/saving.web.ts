@@ -43,7 +43,7 @@ export function startCloudSaving(repo: DraftRepository, changed: (states: Record
           if (!navigator.onLine) { report(draft.id, { state: 'pending', revision }); continue; }
           const metadata = encodeManifest({ draft, jobs: jobs.filter(job => job.draftId === draft.id) });
           const fingerprint = await digest(metadata);
-          if (saved.get(draft.id) === fingerprint) continue;
+          if (saved.get(draft.id) === fingerprint) { report(draft.id, { state: 'saved', revision }); continue; }
           report(draft.id, { state: 'saving', revision });
           const id = await digest(new TextEncoder().encode(`${installation}/${draft.id}`));
           const response = await api(`drafts/${id}`);

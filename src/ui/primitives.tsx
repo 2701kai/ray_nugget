@@ -28,7 +28,7 @@ export function Sheet({ title, subtitle, children, onClose, locked = false }: { 
   return <Modal transparent animationType="fade" visible onRequestClose={() => { if (!locked) onClose(); }}>
     <View style={s.overlay} accessibilityViewIsModal>
       <View style={[s.sheet, { width: Math.min(width - 24, 560) }]}>
-        <View style={{ padding: 16, paddingBottom: 12, flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}><View style={{ flex: 1 }}><Txt weight="bold" style={{ fontSize: 21, lineHeight: 28 }}>{title}</Txt>{subtitle && <Txt style={{ color: colors.muted, fontSize: 16, marginTop: 2 }}>{subtitle}</Txt>}</View><Button label="Close" icon="close" kind="quiet" onPress={onClose} disabled={locked} style={{ minWidth: 44, paddingHorizontal: 4 }} /></View>
+        <View style={{ padding: 16, paddingBottom: 12, flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}><View style={{ flex: 1 }}><Txt weight="bold" style={{ fontSize: 21, lineHeight: 28 }}>{title}</Txt>{subtitle && <Txt style={{ color: colors.muted, fontSize: 16, marginTop: 2 }}>{subtitle}</Txt>}</View><Button label="Schließen" icon="close" kind="quiet" onPress={onClose} disabled={locked} style={{ minWidth: 44, paddingHorizontal: 4 }} /></View>
         <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 16, paddingTop: 4, gap: 14 }}>{children}</ScrollView>
       </View>
     </View>

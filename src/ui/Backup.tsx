@@ -15,8 +15,8 @@ function Contents({ draft }: { draft: Draft }) {
   return <View style={{ padding: 16, backgroundColor: colors.pale, borderRadius: 12, gap: 6 }}>
     <Txt weight="bold">{titleOf(draft)}</Txt>
     {!!draft.event && <Txt style={{ color: colors.muted, fontSize: 16 }}>{draft.event}</Txt>}
-    <Txt style={{ fontSize: 16 }}>{cards} card {cards === 1 ? 'photo' : 'photos'} · {recordings} {recordings === 1 ? 'recording' : 'recordings'} · {size < 0.1 ? '< 0.1' : size.toFixed(1)} MiB of originals</Txt>
-    <Txt style={{ fontSize: 16, color: colors.muted }}>Includes contact details, request, notes, transcripts, and original files.</Txt>
+    <Txt style={{ fontSize: 16 }}>Kartenfotos: {cards} · Aufnahmen: {recordings} · {size < 0.1 ? '< 0,1' : size.toFixed(1).replace('.', ',')} MiB Originale</Txt>
+    <Txt style={{ fontSize: 16, color: colors.muted }}>Enthält Kontaktdaten, Bedarf, Notizen, Transkripte und Originaldateien.</Txt>
   </View>;
 }
 
@@ -29,16 +29,16 @@ export function SaveBackup({ draft, workspace, lock }: { draft: Draft; workspace
     try {
       await saveBackup(`pete-backup-${draft.id.slice(0, 12)}.pete`, await workspace.backup(draft.id));
       setSaved(true);
-    } catch (error) { setError(error instanceof Error ? error.message : 'Could not create the backup.'); }
+    } catch (error) { setError(error instanceof Error ? error.message : 'Das Backup konnte nicht erstellt werden.'); }
     finally { running.current = false; setBusy(false); lock(false); }
   }
   return <>
     <Contents draft={draft} />
-    <Txt style={{ color: colors.muted, fontSize: 16 }}>Save this backup in your company’s file storage. It contains customer details and recordings and is not encrypted. Pete does not upload it automatically.</Txt>
-    <Txt style={{ color: colors.muted, fontSize: 16 }}>To recover it on another device, sign in to Pete and choose Restore a backup. Up to 128 MiB per draft.</Txt>
+    <Txt style={{ color: colors.muted, fontSize: 16 }}>Zusätzliche Exportdatei mit Originalen, unverschlüsselt. Die automatische Company-Cloud-Sicherung läuft unabhängig davon.</Txt>
+    <Txt style={{ color: colors.muted, fontSize: 16 }}>Zum Import auf einem anderen Gerät nutzt Du „Backup wiederherstellen“. Bis zu 128 MiB pro Besucher.</Txt>
     <ErrorNotice message={error} />
-    <Button label={busy ? 'Preparing backup…' : 'Save backup file'} icon="download" disabled={busy} onPress={() => { void save(); }} />
-    {saved && <Txt accessibilityLiveRegion="polite" style={{ color: colors.green, fontSize: 16 }}>Backup file prepared. Check that it was saved in your chosen location.</Txt>}
+    <Button label={busy ? 'Backup wird vorbereitet…' : 'Backup-Datei speichern'} icon="download" disabled={busy} onPress={() => { void save(); }} />
+    {saved && <Txt accessibilityLiveRegion="polite" style={{ color: colors.green, fontSize: 16 }}>Backup-Datei vorbereitet. Prüfe, ob sie am gewählten Ort gespeichert wurde.</Txt>}
   </>;
 }
 
@@ -56,20 +56,20 @@ export function RestoreBackup({ workspace, lock, done }: { workspace: Workspace;
       setPhase('checking'); lock(true); setBackup(undefined);
       const parsed = await decodeBackup(bytes, digest);
       if (alive.current) setBackup(parsed);
-    } catch (error) { if (alive.current) { setBackup(undefined); setError(error instanceof Error ? error.message : 'Could not read this backup.'); } }
+    } catch (error) { if (alive.current) { setBackup(undefined); setError(error instanceof Error ? error.message : 'Das Backup konnte nicht gelesen werden.'); } }
     finally { running.current = false; if (alive.current) { setPhase('idle'); lock(false); } }
   }
   async function restore() {
     if (!backup || running.current) return;
     running.current = true; setPhase('restoring'); lock(true); setError('');
     try { const result = await workspace.restore(backup); done(result.created); }
-    catch (error) { setError(error instanceof Error ? error.message : 'Could not restore this draft. Free some device storage and try again.'); }
+    catch (error) { setError(error instanceof Error ? error.message : 'Wiederherstellen fehlgeschlagen. Schaffe Speicherplatz und versuche es erneut.'); }
     finally { running.current = false; setPhase('idle'); lock(false); }
   }
   return <>
-    <Txt style={{ color: colors.muted, fontSize: 16 }}>Choose a .pete backup to recover its draft and original files on this device. Existing drafts stay as they are. Importing the same file again opens its restored copy, keeping any edits.</Txt>
-    <Button label={phase === 'checking' ? 'Checking backup…' : backup ? 'Choose another backup' : 'Choose backup file'} kind="secondary" disabled={phase !== 'idle'} onPress={() => { void choose(); }} />
-    {backup && <><Contents draft={backup.draft} /><Txt style={{ color: colors.muted, fontSize: 16 }}>Unfinished transcription and card reading stay paused until you choose Retry processing. Restore creates a separate draft.</Txt><Button label={phase === 'restoring' ? 'Restoring…' : 'Restore draft'} disabled={phase !== 'idle'} icon="check" onPress={() => { void restore(); }} /></>}
+    <Txt style={{ color: colors.muted, fontSize: 16 }}>Wähle eine .pete-Datei für Angaben und Originale. Bestehende Besucher bleiben erhalten. Derselbe Import öffnet seine vorhandene Kopie und behält Deine Änderungen.</Txt>
+    <Button label={phase === 'checking' ? 'Backup wird geprüft…' : backup ? 'Anderes Backup wählen' : 'Backup-Datei wählen'} kind="secondary" disabled={phase !== 'idle'} onPress={() => { void choose(); }} />
+    {backup && <><Contents draft={backup.draft} /><Txt style={{ color: colors.muted, fontSize: 16 }}>Der Import erstellt eine persönliche Kopie. Unfertige Verarbeitung bleibt pausiert, bis Du sie erneut startest.</Txt><Button label={phase === 'restoring' ? 'Wird wiederhergestellt…' : 'Besucher wiederherstellen'} disabled={phase !== 'idle'} icon="check" onPress={() => { void restore(); }} /></>}
     <ErrorNotice message={error} />
   </>;
 }

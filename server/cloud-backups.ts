@@ -4,7 +4,7 @@ import { ApiError } from './hosted-jobs';
 import type { AtomicStore } from './hosted-store';
 import type { hostedStorage } from './hosted-storage';
 
-export type CloudCopy = { id: string; draftId: string; fingerprint: string; revision: number; title: string; company: string; savedAt: string };
+export type CloudCopy = { id: string; draftId: string; fingerprint: string; revision: number; title: string; company: string; savedAt: string; createdBy?: string; updatedBy?: string };
 type Media = { bytes: number; mimeType: string; verified?: boolean; uploadUrl?: string; startedAt: number };
 const sha = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex');
 export function cloudBackups(store: AtomicStore, storage: ReturnType<typeof hostedStorage>, list: (owner: string) => Promise<CloudCopy[]>, now = Date.now) {
@@ -43,9 +43,10 @@ export function cloudBackups(store: AtomicStore, storage: ReturnType<typeof host
     await store.atomic([key], () => ({ result: undefined, writes: { [key]: { bytes: media.bytes, mimeType: media.mimeType, verified: true, startedAt: media.startedAt } } }));
     return { complete: true };
   }
-  async function save(owner: string, id: string, bytes: Uint8Array, expected: string | null) {
+  async function save(owner: string, id: string, bytes: Uint8Array, expected: string | null, team?: { actor: string; event: string }) {
     let snapshot;
     try { snapshot = decodeManifest(bytes); } catch { throw new ApiError('Cloud visitor details are invalid or too large.'); }
+    if (team && (snapshot.draft.event !== team.event || sha(new TextEncoder().encode(snapshot.draft.id)) !== id)) throw new ApiError('Der Besucher gehört zu einem anderen Event.', 409);
     for (const attachment of snapshot.draft.attachments) {
       const media = await store.read<Media>(mediaKey(owner, attachment.sha256));
       if (!media?.verified || media.bytes !== attachment.bytes || media.mimeType !== attachment.mimeType) throw new ApiError('An original is still waiting to reach company storage.', 409);
@@ -59,7 +60,8 @@ export function cloudBackups(store: AtomicStore, storage: ReturnType<typeof host
       const current = records[key] as CloudCopy | undefined;
       if (current?.fingerprint === fingerprint) return { result: current };
       if ((current?.fingerprint ?? null) !== expected || (current && (current.draftId !== draft.id || current.revision > draft.revision))) throw new ApiError('This cloud copy changed in another tab. Pete will retry from the latest local draft.', 409);
-      return { result: value, writes: { [key]: value } };
+      const saved = team ? { ...value, createdBy: current?.createdBy || team.actor, updatedBy: team.actor } : value;
+      return { result: saved, writes: { [key]: saved } };
     });
   }
   return { init, complete, save, list,
