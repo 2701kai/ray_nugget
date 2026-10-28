@@ -23,6 +23,7 @@
     "prepare:ocr": "bun scripts/prepare-ocr.ts",
     "server": "bun server/index.ts",
     "test:hosted": "playwright test --config playwright.hosted.config.ts",
+    "test:crm": "bun scripts/test-crm-receiver.ts --postgres",
     "test:updates": "playwright test --config playwright.update.config.ts",
     "eval:details": "bun scripts/evaluate-details.ts"
   },

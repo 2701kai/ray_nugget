@@ -1,0 +1,16 @@
+[project]
+name = "pete-crm-intake"
+version = "0.1.0"
+description = "Isolated non-sending receiver for the existing BEVMAQ Django CRM"
+requires-python = ">=3.11,<3.12"
+# Compatibility pins match the inspected CRM runtime. This package does not
+# change or upgrade the CRM service's dependency set.
+dependencies = [
+  "Django==5.1.3",
+  "google-auth==2.36.0",
+  "requests==2.32.3",
+  "psycopg2-binary==2.9.10",
+]
+
+[tool.uv]
+package = false
