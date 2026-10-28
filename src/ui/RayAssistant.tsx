@@ -47,7 +47,7 @@ export function RayAssistant({ draft, workspace, speak }: { draft: Draft; worksp
       <Txt accessibilityLiveRegion="polite" style={{ fontSize: 16, color: stale ? colors.danger : colors.muted }}>{stale ? 'New details added · ask Ray again to update this advice.' : `Advice saved · ${new Date(latest.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`}</Txt>
       {!!latest.questions.length && <View style={{ backgroundColor: colors.pale, padding: 10, borderRadius: 8, gap: 5 }}><Txt weight="bold" style={{ fontSize: 16 }}>Ask next</Txt>{latest.questions.map((q, i) => <Txt key={i} style={{ fontSize: 16, lineHeight: 24 }}>{q}</Txt>)}</View>}
       <Txt selectable style={{ fontSize: 16, lineHeight: 24 }} numberOfLines={expanded ? undefined : 8}>{latest.text}</Txt>
-      {latest.text.length > 350 && <Button label={expanded ? 'Less advice' : 'Read full advice'} kind="quiet" onPress={() => setExpanded(!expanded)} style={{ alignSelf: 'flex-start', paddingHorizontal: 0 }} />}
+      <Button label={expanded ? 'Less advice' : 'Read full advice'} kind="quiet" onPress={() => setExpanded(!expanded)} style={{ alignSelf: 'flex-start', paddingHorizontal: 0 }} />
       {!seller && <Button label="Answer by voice" icon="mic" kind="quiet" onPress={speak} style={{ alignSelf: 'flex-start', paddingHorizontal: 0 }} />}
       {!!latest.machines.length && <Txt weight="semibold" style={{ fontSize: 16 }}>Possible machines · fit and availability to confirm</Txt>}
       {latest.machines.map(m => <View key={m.sku} style={{ borderTopWidth: 1, borderColor: colors.line, paddingTop: 10, gap: 5 }}>
