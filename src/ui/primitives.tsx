@@ -1,9 +1,16 @@
-import type { ReactNode } from 'react';
+import { createContext, useContext, type ReactNode } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type TextInputProps, type TextProps, type ViewStyle, useWindowDimensions } from 'react-native';
 import { colors, fonts } from './theme';
 import { Icon, type IconName } from './Icon';
 import { StableTextInput } from './StableTextInput';
 import { useUpdateGuard } from '../pwa/updateGuard';
+
+const DisabledControls = createContext(false);
+export const useControlsDisabled = () => useContext(DisabledControls);
+// Keep the conversation readable while its recorder owns the visitor.
+export function ControlsDisabled({ disabled, children }: { disabled: boolean; children: ReactNode }) {
+  return <DisabledControls.Provider value={disabled}>{children}</DisabledControls.Provider>;
+}
 
 export function Txt({ children, style, weight = 'regular', ...props }: TextProps & { weight?: keyof typeof fonts }) {
   return <Text {...props} style={[{ fontFamily: fonts[weight], color: colors.ink, fontSize: 18, lineHeight: 28 }, style]}>{children}</Text>;
@@ -11,15 +18,17 @@ export function Txt({ children, style, weight = 'regular', ...props }: TextProps
 export function Eyebrow({ children }: { children: ReactNode }) {
   return <Txt weight="bold" style={{ fontSize: 16, letterSpacing: 0.8, color: colors.muted }}>{children}</Txt>;
 }
-export function Button({ label, onPress, icon, kind = 'primary', disabled, style, testID }: { label: string; onPress: () => void; icon?: IconName; kind?: 'primary' | 'secondary' | 'quiet' | 'danger'; disabled?: boolean; style?: ViewStyle; testID?: string }) {
+export function Button({ label, accessibilityLabel, onPress, icon, kind = 'primary', disabled, style, testID }: { label: string; accessibilityLabel?: string; onPress: () => void; icon?: IconName; kind?: 'primary' | 'secondary' | 'quiet' | 'danger'; disabled?: boolean; style?: ViewStyle; testID?: string }) {
+  disabled = useControlsDisabled() || disabled;
   const dark = kind === 'primary';
   const color = kind === 'danger' ? colors.danger : dark ? colors.paper : colors.ink;
-  return <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled: !!disabled }} testID={testID} onPress={onPress} disabled={disabled} style={({ pressed }) => [s.button, { backgroundColor: dark ? colors.green : kind === 'secondary' ? colors.sage : 'transparent', opacity: disabled ? 0.4 : pressed ? 0.7 : 1, transform: [{ scale: pressed ? 0.98 : 1 }] }, style]}>
-    {icon && <Icon name={icon} size={20} color={color} />}<Txt weight="bold" style={{ color, fontSize: 16, lineHeight: 24, flexShrink: 1, textAlign: 'center' }}>{label}</Txt>
+  return <Pressable accessibilityRole="button" accessibilityLabel={accessibilityLabel || label} accessibilityState={{ disabled: !!disabled }} testID={testID} onPress={onPress} disabled={disabled} style={({ pressed }) => [s.button, { backgroundColor: dark ? colors.green : kind === 'secondary' ? colors.sage : 'transparent', opacity: disabled ? 0.4 : pressed ? 0.7 : 1, transform: [{ scale: pressed ? 0.98 : 1 }] }, style]}>
+    {icon && <Icon name={icon} size={20} color={color} />}{!!label && <Txt weight="bold" style={{ color, fontSize: 16, lineHeight: 24, flexShrink: 1, textAlign: 'center' }}>{label}</Txt>}
   </Pressable>;
 }
 export function Field({ label, helper, ...props }: TextInputProps & { label: string; helper?: string }) {
-  return <View style={{ gap: 5, flex: 1 }}><Txt weight="semibold" style={{ fontSize: 16 }}>{label}</Txt><StableTextInput accessibilityLabel={label} placeholderTextColor={colors.muted} {...props} style={[s.input, props.multiline && { minHeight: 100, textAlignVertical: 'top' }, props.style]} />{helper && <Txt style={{ fontSize: 16, lineHeight: 24, color: colors.muted }}>{helper}</Txt>}</View>;
+  const disabled = useControlsDisabled();
+  return <View style={{ gap: 5, flex: 1 }}><Txt weight="semibold" style={{ fontSize: 16 }}>{label}</Txt><StableTextInput accessibilityLabel={label} placeholderTextColor={colors.muted} {...props} editable={disabled ? false : props.editable} style={[s.input, props.multiline && { minHeight: 100, textAlignVertical: 'top' }, props.style]} />{helper && <Txt style={{ fontSize: 16, lineHeight: 24, color: colors.muted }}>{helper}</Txt>}</View>;
 }
 export function ErrorNotice({ message }: { message?: string }) {
   return message ? <View accessibilityRole="alert" style={{ backgroundColor: colors.dangerBg, padding: 12, borderRadius: 10 }}><Txt style={{ color: colors.danger, fontSize: 16 }}>{message}</Txt></View> : null;

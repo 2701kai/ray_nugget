@@ -3,10 +3,11 @@ import { rfqGaps, type Draft } from '../domain/draft';
 import type { Workspace } from '../useWorkspace';
 import { MediaItem } from './DraftDetail';
 import { Icon } from './Icon';
-import { Eyebrow, Txt } from './primitives';
+import { Eyebrow, Txt, useControlsDisabled } from './primitives';
 import { colors } from './theme';
 
 export function Conversation({ draft, workspace }: { draft: Draft; workspace: Workspace }) {
+  const capturing = useControlsDisabled();
   const entries = [
     ...draft.attachments.map(item => ({ kind: 'media' as const, id: item.id, at: item.capturedAt, item })),
     ...(draft.entries ?? []).map(item => ({ kind: 'note' as const, id: item.id, at: item.createdAt, item })),
@@ -27,6 +28,6 @@ export function Conversation({ draft, workspace }: { draft: Draft; workspace: Wo
         {!!workspace.jobs.find(job => job.attachmentId === entry.id && job.draftId === draft.id)?.result?.text && <View style={{ borderLeftWidth: 2, borderColor: colors.accent, paddingLeft: 12 }}><Txt numberOfLines={4} selectable style={{ fontSize: 16, lineHeight: 24, color: colors.muted }}>{workspace.jobs.find(job => job.attachmentId === entry.id && job.draftId === draft.id)?.result?.text}</Txt></View>}
       </> : <View style={{ padding: 17, borderRadius: 14, borderTopLeftRadius: 3, backgroundColor: colors.paper, borderWidth: 1, borderColor: colors.line }}><Txt selectable style={{ fontSize: 18, lineHeight: 24 }}>{entry.item.text}</Txt></View>}
     </View>)}
-    <View style={{ flexDirection: 'row', gap: 7, alignItems: 'center', paddingVertical: 12 }}><Icon name="check" size={13} color={colors.green} /><Txt style={{ fontSize: 16, color: colors.muted }}>{workspace.cloudEnabled ? 'Originals save here and upload automatically to company cloud.' : 'Originals saved locally. You can keep capturing while processing runs.'}</Txt></View>
+    {!capturing && <View style={{ flexDirection: 'row', gap: 7, alignItems: 'center', paddingVertical: 12 }}><Icon name="check" size={13} color={colors.green} /><Txt style={{ fontSize: 16, color: colors.muted }}>{workspace.cloudEnabled ? 'Originals save here and upload automatically to company cloud.' : 'Originals saved locally. You can keep capturing while processing runs.'}</Txt></View>}
   </View>;
 }

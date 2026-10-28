@@ -1,7 +1,5 @@
 import { useEffect, useState } from 'react';
 import { Image, View } from 'react-native';
-import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
-import { useUpdateGuard } from '../pwa/updateGuard';
 import { rfqGaps, titleOf, type Attachment, type Draft } from '../domain/draft';
 import type { Workspace } from '../useWorkspace';
 import { mediaUri, releaseUri } from '../media/files';
@@ -10,16 +8,8 @@ import { Button, Eyebrow, Txt } from './primitives';
 import { Icon } from './Icon';
 import { CloudStatus } from './CloudStatus';
 import { ProcessingStatus } from './ExtractionReview';
+import { VoicePlayer } from './VoicePlayer';
 
-function VoicePlayer({ uri }: { uri: string }) {
-  const player = useAudioPlayer(uri);
-  const status = useAudioPlayerStatus(player);
-  useUpdateGuard(status.playing);
-  return <Button label={status.playing ? 'Pause recording' : 'Play recording'} kind="quiet" icon={status.playing ? 'pause' : 'play'} onPress={async () => {
-    if (status.playing) player.pause();
-    else { if (status.didJustFinish || status.currentTime >= status.duration) await player.seekTo(0); player.play(); }
-  }} style={{ alignSelf: 'flex-start', paddingHorizontal: 0, minHeight: 32 }} />;
-}
 
 export function MediaItem({ draft, item, workspace }: { draft: Draft; item: Attachment; workspace: Workspace }) {
   const draftId = draft.id;
@@ -36,7 +26,7 @@ export function MediaItem({ draft, item, workspace }: { draft: Draft; item: Atta
   }, [draftId, item.id]);
   return <View style={{ padding: 14, borderWidth: 1, borderColor: colors.line, borderRadius: 12, gap: 8 }}>
     {item.kind === 'card' && !!uri && <Image source={{ uri }} accessibilityLabel={item.name} resizeMode="contain" style={{ width: '100%', height: 110, backgroundColor: colors.background, borderRadius: 8 }} />}
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}><Icon name={item.kind === 'card' ? 'card' : 'mic'} size={16} color={colors.green} /><Txt weight="semibold" style={{ fontSize: 16, flex: 1 }} numberOfLines={1}>{item.name}</Txt><Txt style={{ fontSize: 16, color: colors.muted }}>{Math.max(1, Math.round(item.bytes / 1024))} KB</Txt></View>
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}><Icon name={item.kind === 'card' ? 'card' : 'mic'} size={16} color={colors.green} /><Txt weight="semibold" style={{ fontSize: 16, flex: 1 }} numberOfLines={1}>{item.name}</Txt>{item.kind === 'card' && <Txt style={{ fontSize: 16, color: colors.muted }}>{Math.max(1, Math.round(item.bytes / 1024))} KB</Txt>}</View>
     {item.kind === 'voice' && !!uri && <VoicePlayer uri={uri} />}
     {(error || !workspace.cloudEnabled) && <Txt style={{ fontSize: 16, color: error ? colors.danger : colors.muted, lineHeight: 24 }}>{error || 'Original saved on this device'}</Txt>}
     <ProcessingStatus draft={draft} attachmentId={item.id} workspace={workspace} />
@@ -58,9 +48,9 @@ export function DraftDetail({ draft, workspace, edit, intro, backup, exportRecor
     <View style={{ borderTopWidth: 1, borderColor: colors.line, paddingTop: 18, gap: 10 }}><View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}><Txt weight="bold" style={{ fontSize: 16 }}>The request</Txt><Button label="Edit request" kind="quiet" onPress={() => edit('request')} style={{ paddingHorizontal: 0, minHeight: 28 }} /></View>{[
       ['Intent', draft.request.intent === 'unspecified' ? '' : draft.request.intent === 'buy' ? 'Buying' : 'Selling'], ['Product', draft.request.product], ['Container', draft.request.packaging], ['Throughput', draft.request.throughput ? `${draft.request.throughput} ${draft.request.unit}` : ''],
     ].map(([label, value]) => <View key={label} style={{ flexDirection: 'row', gap: 12 }}><Txt style={{ color: colors.muted, fontSize: 16, width: 80 }}>{label}</Txt><Txt style={{ fontSize: 16, flex: 1 }}>{value || 'Still needed'}</Txt></View>)}
-    <View style={{ backgroundColor: colors.pale, borderRadius: 8, padding: 10 }}><Txt style={{ fontSize: 16, lineHeight: 24, color: colors.green }}>{gaps.length ? `${gaps.length} Kernangaben noch offen` : 'Filling requirements captured'}</Txt></View>
+    <View style={{ backgroundColor: colors.pale, borderRadius: 8, padding: 10 }}><Txt style={{ fontSize: 16, lineHeight: 24, color: colors.green }}>{gaps.length ? `${gaps.length} key details still needed` : 'Filling requirements captured'}</Txt></View>
     {!!draft.note && <Txt style={{ fontSize: 16, color: colors.muted }}>{draft.note}</Txt>}</View>
-    {showMedia && draft.attachments.length > 0 && <View style={{ gap: 10 }}><Eyebrow>QUELLEN · {draft.attachments.length}</Eyebrow>{draft.attachments.map(item => <MediaItem key={item.id} draft={draft} item={item} workspace={workspace} />)}</View>}
+    {showMedia && draft.attachments.length > 0 && <View style={{ gap: 10 }}><Eyebrow>SOURCES · {draft.attachments.length}</Eyebrow>{draft.attachments.map(item => <MediaItem key={item.id} draft={draft} item={item} workspace={workspace} />)}</View>}
     {!!shareError && <Txt style={{ color: colors.danger }}>{shareError}</Txt>}
     {!workspace.teamView.links[draft.id] && workspace.teamView.teams.map(team => <Button key={team.id} label={`Share with the ${team.name} team`} kind="secondary" icon="folder" onPress={() => { setShareError(''); void workspace.shareTeam(draft.id, team.id).catch(error => setShareError(error.message)); }} />)}
     <View style={{ gap: 8, borderTopWidth: 1, borderColor: colors.line, paddingTop: 18 }}><Button label="WhatsApp introduction" icon="phone" onPress={intro} /><Txt style={{ textAlign: 'center', fontSize: 16, color: colors.muted }}>Preview only. No messages are sent.</Txt><Button label="Download backup file" icon="download" kind="secondary" onPress={backup} /><Button label="Export draft metadata" kind="quiet" onPress={exportRecord} /></View>

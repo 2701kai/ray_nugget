@@ -23,6 +23,14 @@ the capture dock uses 48px buttons. Padding and repeated help text are reduced.
 Web inputs keep the browser's editing buffer and focus during dictation and
 background updates. Manual forms save only edited fields, preserving details
 filled in the background while the form was open.
+
+Voice capture stays in a compact dock below the conversation. The visitor and
+previous notes remain visible; navigation, editing, and playback controls are
+locked until capture finishes or an idle recorder is closed. A running or unsaved
+recording cannot be dismissed silently. The same recorder survives mobile/desktop
+layout changes and remains bound to its source visitor. Conversation recordings
+still require consent. Playback shows elapsed time, duration when available, and
+10-second back/forward controls; starting a recording pauses existing playback.
 A quiet version hint appears at the bottom of the workspace and sign-in screen;
 Settings shows the same numeric version. It identifies the page actually open,
 including a cached offline page, so an older tab cannot report a newer release.

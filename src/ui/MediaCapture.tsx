@@ -4,7 +4,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { useCaptureRecorder } from '../media/useCaptureRecorder';
 import { useUnsavedRecording } from '../media/useUnsavedRecording';
 import { saveRecording } from '../media/files';
-import { MAX_MEDIA_BYTES, MAX_RECORDING_SECONDS, MAX_CONVERSATION_SECONDS, type Draft } from '../domain/draft';
+import { MAX_MEDIA_BYTES, MAX_RECORDING_SECONDS, MAX_CONVERSATION_SECONDS, titleOf, type Draft } from '../domain/draft';
 import type { Workspace } from '../useWorkspace';
 import { Button, Choice, ErrorNotice, Txt } from './primitives';
 import { colors, fonts } from './theme';
@@ -42,7 +42,7 @@ export function CardCapture({ draft, workspace, done, lock }: { draft: Draft; wo
   </>;
 }
 
-export function VoiceCapture({ draft, workspace, done, lock, initialMode = 'memo', autoStart = false }: { draft: Draft; workspace: Workspace; done: () => void; lock: (locked: boolean) => void; initialMode?: 'memo' | 'conversation'; autoStart?: boolean }) {
+export function VoiceCapture({ draft, workspace, done, lock, initialMode = 'memo', autoStart = false, compact = false, onClose }: { draft: Draft; workspace: Workspace; done: () => void; lock: (locked: boolean) => void; initialMode?: 'memo' | 'conversation'; autoStart?: boolean; compact?: boolean; onClose?: () => void }) {
   const [mode, setMode] = useState<'memo' | 'conversation'>(initialMode);
   const [consent, setConsent] = useState(false);
   const [phase, setPhase] = useState<'idle' | 'preparing' | 'recording' | 'saving' | 'retry'>('idle');
@@ -106,16 +106,25 @@ export function VoiceCapture({ draft, workspace, done, lock, initialMode = 'memo
   }
   finishRef.current = () => { void finish(); };
   const recording = phase === 'recording';
+  const action = recording ? 'Stop and save recording' : phase === 'retry' ? 'Retry saving recording' : phase === 'saving' ? 'Saving recording…' : phase === 'preparing' ? 'Preparing microphone…' : 'Start recording';
+  const feedback = phase === 'saving' ? 'Saving the original recording…' : phase === 'preparing' ? 'Preparing microphone…' : recording ? 'Recording · stop to save to this visitor' : phase === 'retry' ? 'Not saved yet · keep this page open' : mode === 'conversation' ? 'Up to 30 minutes. Stop and save when you are done.' : 'A short note is all you need. Up to 3 minutes.';
+  const timer = `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
   return <>
-    {phase === 'idle' && <Choice label="What are you recording?" value={mode} options={[{ value: 'memo', label: 'My own voice memo' }, { value: 'conversation', label: 'Conversation' }]} onChange={setMode} />}
+    {compact && <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+      <View style={{ flex: 1, minWidth: 0 }}><Txt weight="bold" style={{ fontSize: 16, lineHeight: 22 }}>{mode === 'memo' ? 'Voice note' : 'Conversation recording'}</Txt><Txt numberOfLines={1} style={{ fontSize: 16, lineHeight: 22, color: colors.muted }}>For {titleOf(draft)}</Txt></View>
+      <Txt style={{ fontSize: 22, lineHeight: 30, fontVariant: ['tabular-nums'], fontFamily: fonts.semibold }}>{timer}</Txt>
+      <Button label="" accessibilityLabel="Close" icon="close" kind="quiet" onPress={() => { if (phase === 'idle') onClose?.(); }} disabled={phase !== 'idle'} style={{ width: 44, paddingHorizontal: 0 }} />
+    </View>}
+    {!compact && phase === 'idle' && <Choice label="What are you recording?" value={mode} options={[{ value: 'memo', label: 'My own voice memo' }, { value: 'conversation', label: 'Conversation' }]} onChange={setMode} />}
     {mode === 'conversation' && phase === 'idle' && <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: consent }} aria-checked={consent} accessibilityLabel="The other person agreed to this recording" onPress={() => setConsent(!consent)} style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}><View style={{ width: 22, height: 22, borderWidth: 1, borderColor: colors.green, borderRadius: 5, backgroundColor: consent ? colors.green : colors.paper }}>{consent && <Icon name="check" size={20} color={colors.paper} />}</View><Txt style={{ flex: 1, fontSize: 16 }}>The other person agreed to this recording.</Txt></Pressable>}
-    <View style={{ alignItems: 'center', gap: 10, padding: 16, borderRadius: 12, backgroundColor: colors.pale }}>
+    {compact ? <View style={{ flexDirection: 'row', gap: 7, alignItems: 'center' }}><View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: recording ? colors.danger : colors.muted }} /><Txt accessibilityLiveRegion="polite" style={{ fontSize: 16, lineHeight: 22, color: colors.muted, flex: 1 }}>{recording ? `Recording · ${limit / 60} min maximum` : feedback}</Txt></View> : <View style={{ alignItems: 'center', gap: 10, padding: 16, borderRadius: 12, backgroundColor: colors.pale }}>
       <View style={{ width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: recording ? colors.green : colors.sage }}><Icon name={recording ? 'mic' : 'clock'} size={22} color={recording ? colors.paper : colors.green} /></View>
-      <Txt weight="semibold" style={{ fontSize: 30, lineHeight: 38, fontVariant: ['tabular-nums'], fontFamily: fonts.medium }}>{String(Math.floor(seconds / 60)).padStart(2, '0')}:{String(seconds % 60).padStart(2, '0')}</Txt>
-      <Txt style={{ fontSize: 16, color: colors.muted }}>{phase === 'saving' ? 'Saving the original recording…' : phase === 'preparing' ? 'Preparing microphone…' : recording ? 'Recording · stop to save to this visitor' : phase === 'retry' ? 'Not saved yet · keep this page open' : mode === 'conversation' ? 'Up to 30 minutes. Stop and save when you are done.' : 'A short note is all you need. Up to 3 minutes.'}</Txt>
-    </View>
+      <Txt weight="semibold" style={{ fontSize: 30, lineHeight: 38, fontVariant: ['tabular-nums'], fontFamily: fonts.medium }}>{timer}</Txt>
+      <Txt style={{ fontSize: 16, color: colors.muted }}>{feedback}</Txt>
+    </View>}
     <ErrorNotice message={error} />
-    <Button label={recording ? 'Stop and save recording' : phase === 'retry' ? 'Retry saving recording' : phase === 'saving' ? 'Saving recording…' : phase === 'preparing' ? 'Preparing microphone…' : 'Start recording'} icon={recording ? 'stop' : 'mic'} disabled={phase === 'saving' || phase === 'preparing' || (mode === 'conversation' && !consent)} onPress={recording || phase === 'retry' ? finish : start} />
+    <Button label={compact && recording ? 'Stop & save' : action} accessibilityLabel={action} icon={recording ? 'stop' : 'mic'} disabled={phase === 'saving' || phase === 'preparing' || (mode === 'conversation' && !consent)} onPress={recording || phase === 'retry' ? finish : start} />
+    {compact && recording && <Txt style={{ fontSize: 16, lineHeight: 22, color: colors.muted }}>Keep Pete open until saved.</Txt>}
     {phase === 'retry' && <>
       <Button label={downloading ? 'Preparing original…' : 'Download original recording'} kind="secondary" disabled={downloading} icon="download" onPress={async () => {
         if (!pendingUri.current || downloading) return;
@@ -126,6 +135,6 @@ export function VoiceCapture({ draft, workspace, done, lock, initialMode = 'memo
       }} />
       {discarding ? <View style={{ gap: 10 }}><Txt>This recording has not been saved to the visitor. Discarding removes this unsaved copy.</Txt><Button label="Keep this recording" kind="secondary" onPress={() => setDiscarding(false)} /><Button label="Discard unsaved recording" kind="danger" disabled={downloading} onPress={() => { pendingUri.current = null; lock(false); done(); }} /></View> : <Button label="Discard recording…" kind="quiet" disabled={downloading} onPress={() => setDiscarding(true)} />}
     </>}
-    <Txt style={{ color: colors.muted, fontSize: 16, lineHeight: 24 }}>{workspace.cloudEnabled ? 'Saved here first, then backed up to company cloud. Google in the EU transcribes and fills the draft.' : workspace.supportedKinds.includes('voice') ? 'Saved on this device. Your company’s Google service in the EU transcribes and fills the draft.' : 'Saved on this device. Transcription is not configured on this platform.'} Keep Pete open until saving finishes.</Txt>
+    {!compact && <Txt style={{ color: colors.muted, fontSize: 16, lineHeight: 24 }}>{workspace.cloudEnabled ? 'Saved here first, then backed up to company cloud. Google in the EU transcribes and fills the draft.' : workspace.supportedKinds.includes('voice') ? 'Saved on this device. Your company’s Google service in the EU transcribes and fills the draft.' : 'Saved on this device. Transcription is not configured on this platform.'} Keep Pete open until saving finishes.</Txt>}
   </>;
 }

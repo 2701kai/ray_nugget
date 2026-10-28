@@ -34,7 +34,7 @@ test('visitor and RFQ drafts survive reload and remain separate', async ({ page 
   await page.getByRole('button', { name: 'New visitor', exact: true }).click();
   await page.getByRole('button', { name: 'Edit contact', exact: true }).click();
   await contact(page, 'Ivo Berg · test', '+12025550183');
-  await expect(page.getByText('3 Kernangaben noch offen', { exact: true })).toBeVisible();
+  await expect(page.getByText('3 key details still needed', { exact: true })).toBeVisible();
   await page.reload();
   await page.getByRole('button', { name: 'Open visitor Mara Lind · test', exact: true }).click();
   await expect(page.getByText('Synthetic juice', { exact: true })).toBeVisible();
