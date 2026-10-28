@@ -116,6 +116,10 @@ export function useWorkspace() {
   async function selectScope(value: string) { await savePreferences({ ...preferences, workspaceScope: value }); }
   async function openTeam(id: string, teamId: string) { await team.current?.open(id, teamId); await activateDraft(id); }
   async function shareTeam(id: string, teamId: string) { await team.current?.share(id, teamId); }
-  return { holdTeamUpdates: (held: boolean) => { editingTeam.current = held; if (!held) team.current?.wake(); }, cancelTeamOpen: () => team.current?.cancelOpen(), teamView, scope, selectScope, openTeam, shareTeam, resolveTeam: (id: string, choices: Record<string, 'local' | 'team'>) => team.current?.resolve(id, choices), drafts, activeDraftId, activateDraft, jobs, supportedKinds, preferences, loading, error, processingError, cloudEnabled, cloudStates, cloudCopies, restoreCloud, retryCloud: () => cloud.current?.wake(), retry: () => setGeneration(g => g + 1), create, update, attach, savePreferences, getMedia, retryJob, reviewJob, backup, restore };
+  async function assignLeadOwner(id: string, email: string, expectedVersion: number) {
+    if (!team.current) throw new Error('The team workspace is not ready.');
+    await team.current.assignOwner(id, email, expectedVersion);
+  }
+  return { assignLeadOwner, holdTeamUpdates: (held: boolean) => { editingTeam.current = held; if (!held) team.current?.wake(); }, cancelTeamOpen: () => team.current?.cancelOpen(), teamView, scope, selectScope, openTeam, shareTeam, resolveTeam: (id: string, choices: Record<string, 'local' | 'team'>) => team.current?.resolve(id, choices), drafts, activeDraftId, activateDraft, jobs, supportedKinds, preferences, loading, error, processingError, cloudEnabled, cloudStates, cloudCopies, restoreCloud, retryCloud: () => cloud.current?.wake(), retry: () => setGeneration(g => g + 1), create, update, attach, savePreferences, getMedia, retryJob, reviewJob, backup, restore };
 }
 export type Workspace = ReturnType<typeof useWorkspace>;

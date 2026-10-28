@@ -65,6 +65,20 @@ latest confirmed copy. **Saved to company cloud** appears only after originals
 pass size/hash checks and the details are committed. Pending/offline/error states
 remain distinct. Reconnects resume saving; unchanged originals upload once.
 
+Shared visitors also enter Pete's **lead intake** automatically. Every accepted
+snapshot gets a durable receipt after its originals and details are verified in
+company storage. Retrying the same save reuses that receipt; later changes keep
+the same lead identity. Empty placeholders and personal backups do not create
+intake leads. Incomplete requests are accepted with their missing details intact.
+
+In **Details & request → Lead handoff**, **Received by Pete** confirms intake,
+not delivery to a CRM. CRM transfer is not connected yet, and intake sends no
+messages. The person who first shared the visitor becomes its default owner;
+teammate edits do not reassign it. **Change lead owner** selects a current team
+member without typing. Assignment needs a connection and rejects competing stale
+changes. Source receipts retain their history independently of later assignments.
+See [the intake contract](server/lead-intake.md) for identity and storage semantics.
+
 **Personal cloud backups** in **Settings** opens a separate local
 copy under the same Google account. It lists up to 1,000 recent copies. Existing
 local drafts remain intact, and restored unfinished processing stays paused until
@@ -147,18 +161,19 @@ in Firebase Auth for this deployment. Existing users and UIDs are retained; do n
 delete/recreate accounts to switch providers. App updates preserve the persistent
 Google session; signing out is never part of an update.
 
-To update the API, build and deploy its container with the dedicated service identity:
+To update the API, build its container and preserve the service's existing
+identity, environment and team membership configuration:
 
 ```sh
 gcloud builds submit . --project=bevmaq-platform --region=europe-west4 \
   --tag=europe-west4-docker.pkg.dev/bevmaq-platform/pete/api:release
 gcloud run deploy pete-api --project=bevmaq-platform --region=europe-west4 \
-  --image=europe-west4-docker.pkg.dev/bevmaq-platform/pete/api:release \
-  --service-account=pete-api@bevmaq-platform.iam.gserviceaccount.com \
-  --env-vars-file=deploy/cloud-run.env.yaml --memory=512Mi --cpu=1 \
-  --min-instances=0 --max-instances=3 --concurrency=40 --timeout=300 \
-  --allow-unauthenticated
+  --image=europe-west4-docker.pkg.dev/bevmaq-platform/pete/api:release
 ```
+
+Prefer the completed build's immutable image digest for a release. The checked-in
+environment file is a sanitized reference; using it to replace production
+environment variables would remove private team membership configuration.
 
 Cloud Run allows HTTP invocation so Hosting can proxy requests; the application
 requires a verified company Firebase token for every processing route. No service

@@ -22,7 +22,7 @@ export function startTeamSync(repo: DraftRepository, changed: (view: TeamView) =
   async function api(path: string, init: RequestInit = {}) {
     if (controller.signal.aborted || auth?.currentUser?.uid !== uid) throw new Error('Your signed-in account has changed.');
     const response = await fetch(`${gateway}/teams${path}`, { ...init, signal: AbortSignal.any([controller.signal, AbortSignal.timeout(120_000), ...(init.signal ? [init.signal] : [])]), headers: { ...init.headers, Authorization: `Bearer ${await accessToken()}` } });
-    if (!response.ok && response.status !== 404) {
+    if (!response.ok && (response.status !== 404 || init.method === 'POST')) {
       const data = await response.json().catch(() => ({}));
       throw new Error(data.error || 'The team workspace is unavailable right now. Your capture stays saved here.');
     }
@@ -63,7 +63,7 @@ export function startTeamSync(repo: DraftRepository, changed: (view: TeamView) =
         const bytes = await repo.media(snapshot.draft.id, a.id);
         if (!bytes || await digest(bytes) !== a.sha256) throw new Error('An original file is missing on this device.');
         await upload(session.uploadUrl, bytes, a.mimeType, controller.signal);
-        if (!(await post(`${path}/complete`)).complete) throw new Error('Ein Original wartet noch auf die Cloud.');
+        if (!(await post(`${path}/complete`)).complete) throw new Error('An original is still waiting to reach company storage.');
       }
     }
     const id = await digest(encoder.encode(snapshot.draft.id));
@@ -80,7 +80,7 @@ export function startTeamSync(repo: DraftRepository, changed: (view: TeamView) =
       decisions.delete(id); pendingDecisions.get(id)?.(); pendingDecisions.delete(id);
     }
     if (!navigator.onLine) { report({ state: 'pending' }); return; }
-    if (link.base === localText && remote?.fingerprint === link.fingerprint) { report({ state: 'saved' }); return; }
+    if (link.base === localText && remote?.fingerprint === link.fingerprint && remote?.intakeVersion === 1) { report({ state: 'saved' }); return; }
     report({ state: 'saving' });
     if (remote && remote.fingerprint !== link.fingerprint) {
       if (!canApply()) { report({ state: 'pending' }); return; }
@@ -118,6 +118,7 @@ export function startTeamSync(repo: DraftRepository, changed: (view: TeamView) =
     }
     if (!remote && link.fingerprint) throw new Error('The shared version is unavailable. Your changes stay saved here.');
     const saved = await push(link.teamId, local, remote?.fingerprint ?? null);
+    view.copies = [...view.copies.filter(c => c.teamId !== link.teamId || c.draftId !== id), { ...saved, teamId: link.teamId }];
     const acknowledged = await store.acknowledge(id, localText, { ...link, fingerprint: saved.fingerprint, base: localText, author: saved.updatedBy });
     report({ state: acknowledged ? 'saved' : 'pending' });
   }
@@ -159,6 +160,16 @@ export function startTeamSync(repo: DraftRepository, changed: (view: TeamView) =
   }
   return {
     get view() { return view; }, wake,
+    async assignOwner(id: string, email: string, expectedVersion: number) {
+      const link = view.links[id];
+      if (!ready || !link || !navigator.onLine) throw new Error('Reconnect to change the lead owner.');
+      const copyId = await digest(encoder.encode(id));
+      try {
+        const copy: TeamCopy = await post(`/${link.teamId}/drafts/${copyId}/owner`, { ownerEmail: email, expectedVersion });
+        view.copies = [...view.copies.filter(c => c.teamId !== link.teamId || c.draftId !== id), { ...copy, teamId: link.teamId }];
+        emit();
+      } finally { wake(); }
+    },
     close() { controller.abort(); clearInterval(timer); clearTimeout(debounce); window.removeEventListener('online', wake); for (const release of pendingDecisions.values()) release(); pendingDecisions.clear(); void ready?.then(s => s.close()); },
     async share(id: string, teamId: string) {
       const team = view.teams.find(t => t.id === teamId);

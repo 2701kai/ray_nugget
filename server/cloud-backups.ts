@@ -3,11 +3,14 @@ import { decodeManifest } from '../src/backup/archive';
 import { ApiError } from './hosted-jobs';
 import type { AtomicStore } from './hosted-store';
 import type { hostedStorage } from './hosted-storage';
+import { leadIntake, type TeamContext } from './lead-intake';
+import type { LeadReceipt } from '../src/leads/types';
 
-export type CloudCopy = { id: string; draftId: string; fingerprint: string; revision: number; title: string; company: string; savedAt: string; createdBy?: string; updatedBy?: string };
+export type CloudCopy = { id: string; draftId: string; fingerprint: string; revision: number; title: string; company: string; savedAt: string; createdBy?: string; updatedBy?: string; intakeVersion?: 1; lead?: LeadReceipt };
 type Media = { bytes: number; mimeType: string; verified?: boolean; uploadUrl?: string; startedAt: number };
 const sha = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex');
 export function cloudBackups(store: AtomicStore, storage: ReturnType<typeof hostedStorage>, list: (owner: string) => Promise<CloudCopy[]>, now = Date.now) {
+  const intake = leadIntake(store, storage, now);
   const object = (owner: string, id: string) => `owners/${owner}/media/${id}`;
   const mediaKey = (owner: string, id: string) => `cloudOwners/${owner}/media/${id}`;
   const draftKey = (owner: string, id: string) => `cloudOwners/${owner}/drafts/${id}`;
@@ -43,7 +46,7 @@ export function cloudBackups(store: AtomicStore, storage: ReturnType<typeof host
     await store.atomic([key], () => ({ result: undefined, writes: { [key]: { bytes: media.bytes, mimeType: media.mimeType, verified: true, startedAt: media.startedAt } } }));
     return { complete: true };
   }
-  async function save(owner: string, id: string, bytes: Uint8Array, expected: string | null, team?: { actor: string; event: string }) {
+  async function save(owner: string, id: string, bytes: Uint8Array, expected: string | null, team?: TeamContext) {
     let snapshot;
     try { snapshot = decodeManifest(bytes); } catch { throw new ApiError('Cloud visitor details are invalid or too large.'); }
     if (team && (snapshot.draft.event !== team.event || sha(new TextEncoder().encode(snapshot.draft.id)) !== id)) throw new ApiError('This visitor belongs to a different event.', 409);
@@ -56,15 +59,17 @@ export function cloudBackups(store: AtomicStore, storage: ReturnType<typeof host
     const draft = snapshot.draft;
     const value: CloudCopy = { id, draftId: draft.id, fingerprint, revision: draft.revision, title: draft.contact.name || draft.contact.company || 'Untitled visitor', company: draft.contact.company, savedAt: new Date(now()).toISOString() };
     const key = draftKey(owner, id);
-    return store.atomic([key], records => {
+    const pending = team ? await intake.prepare(owner, id, snapshot, fingerprint, team) : undefined;
+    return store.atomic([key, ...(pending?.keys ?? [])], records => {
       const current = records[key] as CloudCopy | undefined;
-      if (current?.fingerprint === fingerprint) return { result: current };
-      if ((current?.fingerprint ?? null) !== expected || (current && (current.draftId !== draft.id || current.revision > draft.revision))) throw new ApiError('This cloud copy changed in another tab. Pete will retry from the latest local draft.', 409);
-      const saved = team ? { ...value, createdBy: current?.createdBy || team.actor, updatedBy: team.actor } : value;
-      return { result: saved, writes: { [key]: saved } };
+      if (current?.fingerprint === fingerprint && (!pending || current.intakeVersion === 1)) return { result: current };
+      if (current?.fingerprint !== fingerprint && ((current?.fingerprint ?? null) !== expected || (current && (current.draftId !== draft.id || current.revision > draft.revision)))) throw new ApiError('This cloud copy changed in another tab. Pete will retry from the latest local draft.', 409);
+      const receipt = pending?.commit(records, current);
+      const saved: CloudCopy = team ? { ...value, createdBy: current?.createdBy || team.actor, updatedBy: team.actor, intakeVersion: 1, ...(receipt?.lead ? { lead: receipt.lead } : {}) } : value;
+      return { result: saved, writes: { ...receipt?.writes, [key]: saved } };
     });
   }
-  return { init, complete, save, list,
+  return { init, complete, save, list, assign: intake.assign,
     get: (owner: string, id: string) => store.read<CloudCopy>(draftKey(owner, id)),
     async manifest(owner: string, id: string) {
       const copy = await store.read<CloudCopy>(draftKey(owner, id));

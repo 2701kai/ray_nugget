@@ -9,6 +9,7 @@ import { Icon } from './Icon';
 import { CloudStatus } from './CloudStatus';
 import { ProcessingStatus } from './ExtractionReview';
 import { VoicePlayer } from './VoicePlayer';
+import { LeadHandoff } from './LeadHandoff';
 
 
 export function MediaItem({ draft, item, workspace }: { draft: Draft; item: Attachment; workspace: Workspace }) {
@@ -51,6 +52,7 @@ export function DraftDetail({ draft, workspace, edit, intro, backup, exportRecor
     <View style={{ backgroundColor: colors.pale, borderRadius: 8, padding: 10 }}><Txt style={{ fontSize: 16, lineHeight: 24, color: colors.green }}>{gaps.length ? `${gaps.length} key details still needed` : 'Filling requirements captured'}</Txt></View>
     {!!draft.note && <Txt style={{ fontSize: 16, color: colors.muted }}>{draft.note}</Txt>}</View>
     {showMedia && draft.attachments.length > 0 && <View style={{ gap: 10 }}><Eyebrow>SOURCES · {draft.attachments.length}</Eyebrow>{draft.attachments.map(item => <MediaItem key={item.id} draft={draft} item={item} workspace={workspace} />)}</View>}
+    <LeadHandoff key={draft.id} draft={draft} workspace={workspace} />
     {!!shareError && <Txt style={{ color: colors.danger }}>{shareError}</Txt>}
     {!workspace.teamView.links[draft.id] && workspace.teamView.teams.map(team => <Button key={team.id} label={`Share with the ${team.name} team`} kind="secondary" icon="folder" onPress={() => { setShareError(''); void workspace.shareTeam(draft.id, team.id).catch(error => setShareError(error.message)); }} />)}
     <View style={{ gap: 8, borderTopWidth: 1, borderColor: colors.line, paddingTop: 18 }}><Button label="WhatsApp introduction" icon="phone" onPress={intro} /><Txt style={{ textAlign: 'center', fontSize: 16, color: colors.muted }}>Preview only. No messages are sent.</Txt><Button label="Download backup file" icon="download" kind="secondary" onPress={backup} /><Button label="Export draft metadata" kind="quiet" onPress={exportRecord} /></View>

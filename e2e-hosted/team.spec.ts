@@ -15,7 +15,7 @@ class MemoryStore implements AtomicStore {
     return result;
   }
 }
-test('two members share originals, merge offline notes and explicitly resolve competing edits', async ({ context, page, browser }) => {
+test('two members share originals, resolve competing edits and keep a stable lead receipt and owner', async ({ context, page, browser }) => {
   const store = new MemoryStore(), files = new Map<string, { bytes: Buffer; mimeType: string }>();
   const sessions = new Map<string, { name: string; mimeType: string }>();
   let dataUploads = 0, interrupt = false;
@@ -46,7 +46,7 @@ test('two members share originals, merge offline notes and explicitly resolve co
 
   }
 
-  test.setTimeout(120000);
+  test.setTimeout(150000);
   const alpha = page;
   const other = await browser.newContext({ viewport: { width: 402, height: 874 }, serviceWorkers: 'block', permissions: ['microphone'] });
   try {
@@ -114,6 +114,27 @@ test('two members share originals, merge offline notes and explicitly resolve co
     expect(await alpha.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
     expect((await alpha.getByRole('button',{name:'New visitor',exact:true}).boundingBox())!.y).toBeGreaterThanOrEqual(0);
     await alpha.screenshot({path:test.info().outputPath('shared-mobile-conversation.png'),animations:'disabled'});
+    await alpha.getByRole('button', { name: 'Details & request', exact: true }).click();
+    await expect(alpha.getByText('Received by Pete', { exact: true })).toBeVisible({ timeout: 30000 });
+    await expect(alpha.getByText('Lead owner: alpha@bevmaq.com', { exact: true })).toBeVisible();
+    await expect(alpha.getByText('CRM transfer is not connected yet.', { exact: true })).toBeVisible();
+    const receipts = [...store.records].filter(([key]) => key.includes('/receipts/'));
+    expect(receipts.length).toBeGreaterThan(0);
+    expect(new Set(receipts.map(([, row]) => row.leadId)).size).toBe(1);
+    await alpha.getByRole('button', { name: 'Change lead owner', exact: true }).click();
+    await expect(alpha.getByRole('textbox')).toHaveCount(0);
+    await alpha.getByRole('button', { name: 'Assign lead to beta@bevmaq.com', exact: true }).click();
+    await expect(alpha.getByText('Lead owner: beta@bevmaq.com', { exact: true })).toBeVisible();
+    // Ownership is separate from edits and source receipts; polling the second
+    // device must observe it even though the visitor fingerprint is unchanged.
+    await beta.getByRole('button', { name: 'Details & request', exact: true }).click();
+    await expect(beta.getByText('Lead owner: beta@bevmaq.com', { exact: true })).toBeVisible({ timeout: 30000 });
+    expect([...store.records].filter(([key]) => key.includes('/receipts/'))).toEqual(receipts);
+    await alpha.reload();
+    await alpha.getByRole('button', { name: 'Details & request', exact: true }).click();
+    await expect(alpha.getByText('Lead owner: beta@bevmaq.com', { exact: true })).toBeVisible({ timeout: 30000 });
+    await alpha.getByRole('button', { name: 'Change lead owner', exact: true }).scrollIntoViewIfNeeded();
+    await alpha.screenshot({ path: test.info().outputPath('lead-handoff-mobile.png'), animations: 'disabled' });
     await alpha.getByRole('button',{name:'Visitors',exact:true}).click();
     await alpha.screenshot({path:test.info().outputPath('shared-mobile-event.png'),animations:'disabled'});
   } finally { await other.close(); }

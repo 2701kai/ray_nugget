@@ -11,6 +11,8 @@ COPY server ./server
 COPY src/domain ./src/domain
 COPY src/backup/archive.ts ./src/backup/archive.ts
 COPY src/processing/jobs.ts ./src/processing/jobs.ts
+COPY src/processing/review.ts src/processing/request.ts ./src/processing/
+COPY src/leads/types.ts ./src/leads/types.ts
 USER bun
 EXPOSE 8080
 CMD ["bun", "server/hosted.ts"]

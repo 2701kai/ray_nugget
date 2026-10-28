@@ -4,6 +4,7 @@ import type { HostedJob } from './hosted-jobs';
 import { ApiError, hostedJobs } from './hosted-jobs';
 import type { Team } from '../src/team/types';
 import type { cloudBackups } from './cloud-backups';
+import type { TeamContext } from './lead-intake';
 
 export type Identity = { uid: string; email?: string; email_verified?: boolean };
 export function ownerOf(identity: Identity) {
@@ -18,7 +19,7 @@ export function hostedHandler(jobs: ReturnType<typeof hostedJobs>, verify: (toke
     const url = new URL(request.url);
     let path = url.pathname.replace(/^\/api(?=\/)/, '');
     if (request.method === 'OPTIONS') return allowedOrigins.includes(origin) ? new Response(null, { status: 204, headers: { ...headers, 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type, Authorization' } }) : json({ error: 'Forbidden origin.' }, 403);
-    if (path === '/health' && request.method === 'GET') return json({ ready: true, authentication: 'required', engine, automaticFilling: !!details, cloudSaving: !!cloud });
+    if (path === '/health' && request.method === 'GET') return json({ ready: true, authentication: 'required', engine, automaticFilling: !!details, cloudSaving: !!cloud, leadIntake: !!cloud, crmDelivery: false });
     if (origin && !allowedOrigins.includes(origin)) return json({ error: 'Forbidden origin.' }, 403);
     try {
       const token = request.headers.get('Authorization')?.match(/^Bearer (\S+)$/)?.[1];
@@ -27,21 +28,21 @@ export function hostedHandler(jobs: ReturnType<typeof hostedJobs>, verify: (toke
       try { identity = await verify(token); } catch { throw new ApiError('Your session expired. Sign in again.', 401); }
       const owner = ownerOf(identity);
       let cloudOwner = owner;
-      let teamContext: { actor: string; event: string } | undefined;
+      let teamContext: TeamContext | undefined;
       if (path === '/teams' && request.method === 'GET') return json(teams.filter(t => t.members.includes(identity.email!.toLowerCase())));
       if (path.startsWith('/teams/')) {
         const match = path.match(/^\/teams\/([a-z0-9-]+)(\/.*)$/);
         const team = teams.find(t => t.id === match?.[1] && t.members.includes(identity.email!.toLowerCase()));
         if (!team || !match) throw new ApiError('Your account does not have access to this team workspace.', 403);
         cloudOwner = createHash('sha256').update(`pete-team/${team.id}`).digest('hex');
-        teamContext = { actor: identity.email!.toLowerCase(), event: team.name };
+        teamContext = { id: team.id, actor: identity.email!.toLowerCase(), event: team.name, members: team.members };
         path = `/cloud${match[2]}`;
       }
       if (path.startsWith('/cloud/')) {
         if (!cloud) throw new ApiError('Company cloud saving is temporarily unavailable. Captures remain on this device.', 503);
         if (request.method === 'POST' && !allowedOrigins.includes(origin)) throw new ApiError('A valid app origin is required.', 403);
         if (request.method === 'GET' && path === '/cloud/drafts') return json(await cloud.list(cloudOwner));
-        const route = path.match(/^\/cloud\/(media|drafts)\/([a-f0-9]{64})(?:\/(upload|complete|manifest))?$/);
+        const route = path.match(/^\/cloud\/(media|drafts)\/([a-f0-9]{64})(?:\/(upload|complete|manifest|owner))?$/);
         if (!route) throw new ApiError('Not found.', 404);
         const [, kind, id, action] = route;
         if (request.method === 'GET') {
@@ -59,6 +60,10 @@ export function hostedHandler(jobs: ReturnType<typeof hostedJobs>, verify: (toke
           let body;
           try { body = JSON.parse(raw); } catch { throw new ApiError('Invalid cloud request.'); }
           if (!body || typeof body !== 'object' || Array.isArray(body)) throw new ApiError('Invalid cloud request.');
+          if (kind === 'drafts' && action === 'owner') {
+            if (!teamContext) throw new ApiError('Lead ownership is available in a shared workspace.', 403);
+            return json(await cloud.assign(cloudOwner, id, teamContext, body.ownerEmail, body.expectedVersion));
+          }
           if (kind === 'media' && action === 'upload') return json(await cloud.init(cloudOwner, id, body.bytes, body.mimeType, origin));
           if (kind === 'drafts' && !action && typeof body.manifest === 'string' && (body.expected === null || /^[a-f0-9]{64}$/.test(body.expected))) return json(await cloud.save(cloudOwner, id, new TextEncoder().encode(body.manifest), body.expected, teamContext));
         }
