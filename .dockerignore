@@ -15,3 +15,6 @@
 !src/processing/request.ts
 !src/leads/
 !src/leads/types.ts
+
+!src/ray/
+!src/ray/types.ts

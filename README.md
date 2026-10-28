@@ -4,9 +4,9 @@ A capture workspace for trade fairs and customer visits. Start with a contact,
 business-card photo, voice note, or buyer/seller request, then enrich the same
 editable visitor draft in any order.
 
-The Firebase pilot is at **https://bevmaq-platform.web.app**. The dedicated address
-**https://pete.bevmaq.com** is configured; initial DNS and certificate propagation
-may still be in progress. The repository remains `ray_nugget`; the app is named Pete.
+The hosted pilot is at **https://pete.bevmaq.com**, also available through
+**https://bevmaq-platform.web.app**. The repository remains `ray_nugget`;
+the app is named Pete.
 
 ## Hosted pilot
 
@@ -35,6 +35,17 @@ still require consent. Playback shows elapsed time, duration when available, and
 conversation, with the visitor and capture time visible. Reading or copying text
 does not approve extracted changes or edit the draft. A saved transcript remains
 readable even if later extraction is paused. Field review stays separate.
+
+**Ask Ray** uses the current visitor's captured need to offer equipment advice,
+useful questions and up to three catalogue-backed machine candidates. **Answer by
+voice** adds details through the same recorder; **Ask Ray again** uses the new
+evidence. Advice and machine choices save with that visitor, including company
+cloud copies and backups. Changed requirements mark earlier advice for refresh;
+suggestions never replace customer facts. Saved advice remains readable offline.
+New consultations require a connection, and failures never block capture or saving.
+Candidate fit and availability need confirmation. Seller matching, full-project
+handoff into Ray, and customer inquiry submission are not part of this increment.
+See [Ray consultation](server/ray.md) for limits, privacy, retries and configuration.
 
 A quiet version hint appears at the bottom of the workspace and sign-in screen;
 Settings shows the same numeric version. It identifies the page actually open,

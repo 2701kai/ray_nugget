@@ -21,6 +21,7 @@ import { DraftDetail } from './src/ui/DraftDetail';
 import { TeamConflict } from './src/ui/TeamConflict';
 import { CloudCopies, CloudStatus } from './src/ui/CloudStatus';
 import { Conversation } from './src/ui/Conversation';
+import { RayAssistant } from './src/ui/RayAssistant';
 import { VersionHint } from './src/ui/VersionHint';
 import { QuickNote } from './src/ui/QuickNote';
 import { AuthGate } from './src/ui/AuthGate';
@@ -131,7 +132,7 @@ function WorkspaceScreen() {
         </View>
         <View style={{ flex: 1, flexDirection: 'row', minHeight: 0 }}>
           <ScrollView style={{ flex: 1 }} keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: desktop ? 28 : 14, paddingBottom: 28 }}>
-            {desktop || section === 'conversation' ? <View style={{ gap: 14 }}><TeamConflict key={JSON.stringify(workspace.teamView.states[draft!.id]?.comparisons)} id={draft!.id} workspace={workspace} /><Conversation key={draft!.id} draft={draft!} workspace={workspace} /></View> : details}
+            {desktop || section === 'conversation' ? <View style={{ gap: 14 }}><TeamConflict key={JSON.stringify(workspace.teamView.states[draft!.id]?.comparisons)} id={draft!.id} workspace={workspace} /><RayAssistant key={`ray-${draft!.id}`} draft={draft!} workspace={workspace} speak={() => { void start('voice'); }} /><Conversation key={draft!.id} draft={draft!} workspace={workspace} /></View> : details}
           </ScrollView>
           {desktop && <ScrollView style={{ width: 320, flexGrow: 0, borderLeftWidth: 1, borderColor: colors.line, backgroundColor: colors.paper }} contentContainerStyle={{ padding: 22 }}>{details}</ScrollView>}
         </View>

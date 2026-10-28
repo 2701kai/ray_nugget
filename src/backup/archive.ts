@@ -1,6 +1,7 @@
 import { mediaLimit, type Attachment, type Contact, type Draft } from '../domain/draft';
 import { detailKeys, requestFields } from '../domain/details';
 import { NEVER, newJob, validateExtraction, type Extraction, type ProcessingJob } from '../processing/jobs';
+import { parseRayAdvice } from '../ray/types';
 
 export const MAX_BACKUP_BYTES = 128 * 1024 * 1024;
 const MAX_MANIFEST_BYTES = 4 * 1024 * 1024;
@@ -134,6 +135,11 @@ function manifest(value: unknown): Omit<BackupSnapshot, 'media'> {
     const f = object(raw.followup);
     draft.followup = { id: id(f.id), state: oneOf(f.state, ['prepared', 'outdated']), recipient: string(f.recipient, 100), message: string(f.message, 10000), preparedAt: date(f.preparedAt) };
   }
+  if (raw.ray !== undefined) {
+    draft.ray = array(raw.ray, 100).map(parseRayAdvice);
+    unique(draft.ray.map(a => a.id));
+    if (draft.ray.some(a => a.draftId !== draft.id)) throw invalid();
+  }
   const jobs = array(root.jobs).map(value => {
     const j = object(value); const attachment = draft.attachments.find(a => a.id === j.attachmentId);
     if (!attachment) throw invalid();
@@ -216,6 +222,7 @@ export function restoredSnapshot(backup: VerifiedBackup): BackupSnapshot {
   const draftId = `restored-${hash(backup.fingerprint)}`;
   const jobId = (original: string) => `${draftId}/${original.slice(backup.draft.id.length + 1)}`;
   const draft: Draft = { ...backup.draft, id: draftId,
+    ...(backup.draft.ray ? { ray: backup.draft.ray.map(a => ({ ...a, draftId })) } : {}),
     appliedJobs: backup.draft.appliedJobs.map(jobId),
     suggestions: backup.draft.suggestions.map(s => ({ ...s, jobId: jobId(s.jobId) })),
     provenance: Object.fromEntries(Object.entries(backup.draft.provenance).map(([key, origin]) => [key, { ...origin, ...(origin.jobId ? { jobId: jobId(origin.jobId) } : {}) }])),

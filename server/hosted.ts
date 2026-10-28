@@ -8,6 +8,7 @@ import { hostedStorage } from './hosted-storage';
 import { hostedJobs } from './hosted-jobs';
 import { hostedHandler } from './hosted-api';
 import { cloudBackups, type CloudCopy } from './cloud-backups';
+import { rayService, rayTransport } from './ray';
 
 const project = process.env.PETE_GCP_PROJECT;
 const bucket = process.env.PETE_GCP_BUCKET;
@@ -26,6 +27,7 @@ const backups = backupBucket ? cloudBackups(firestoreStore(db), hostedStorage(pr
   const result = await db.collection(`cloudOwners/${owner}/drafts`).orderBy('savedAt', 'desc').limit(1000).get();
   return result.docs.map(doc => doc.data() as CloudCopy);
 }) : undefined;
-const handler = hostedHandler(jobs, token => getAuth(app).verifyIdToken(token), origins, `Google Speech-to-Text V2 · ${model} · ${location}`, details, backups, process.env.PETE_TEAM_MEMBERS ? [{ id: 'cibustec-2026', name: 'CIBUSTEC', members: process.env.PETE_TEAM_MEMBERS.split(',').map((value: string) => value.trim().toLowerCase()).filter(Boolean) }] : []);
+const ray = process.env.PETE_RAY_ENABLED === 'true' ? rayService(firestoreStore(db), rayTransport('https://ray.bevmaq.com')) : undefined;
+const handler = hostedHandler(jobs, token => getAuth(app).verifyIdToken(token), origins, `Google Speech-to-Text V2 · ${model} · ${location}`, details, backups, process.env.PETE_TEAM_MEMBERS ? [{ id: 'cibustec-2026', name: 'CIBUSTEC', members: process.env.PETE_TEAM_MEMBERS.split(',').map((value: string) => value.trim().toLowerCase()).filter(Boolean) }] : [], ray);
 Bun.serve({ hostname: '0.0.0.0', port: Number(process.env.PORT || 8080), maxRequestBodySize: 4_500_000, idleTimeout: 120, fetch: handler });
 console.log('Pete hosted API ready. Company authentication is required.');

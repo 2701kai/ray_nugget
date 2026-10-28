@@ -15,6 +15,9 @@ import { digest } from './backup/digest';
 import { startTeamSync } from './team/sync';
 import { emptyTeamView, type TeamView } from './team/types';
 import { startCloudSaving, type CloudStatus } from './cloud/saving';
+import { prepareRayInput } from './ray/brief';
+import { rayAvailable, requestRay } from './ray/client';
+import { useUpdateGuard } from './pwa/updateGuard';
 
 export function useWorkspace() {
   const editingTeam = useRef(false);
@@ -33,13 +36,16 @@ export function useWorkspace() {
   const [error, setError] = useState('');
   const [processingError, setProcessingError] = useState('');
   const [generation, setGeneration] = useState(0);
+  const rayRequests = useRef(new Map<string, AbortController>());
+  const [rayStates, setRayStates] = useState<Record<string, { busy: boolean; error?: string }>>({});
+  useUpdateGuard(Object.values(rayStates).some(s => s.busy));
   useEffect(() => {
     let alive = true;
     let current: DraftRepository | undefined;
     let currentRunner: ReturnType<typeof startProcessing> | undefined;
     let currentTeam: ReturnType<typeof startTeamSync> | undefined;
     let currentCloud: ReturnType<typeof startCloudSaving> | undefined;
-    setLoading(true); setError(''); setProcessingError('');
+    setLoading(true); setError(''); setProcessingError(''); setRayStates({});
     openRepository(storageName()).then(async repository => {
       current = repository;
       const [records, prefs, tasks, selected] = await Promise.all([repository.list(), repository.preferences(), repository.jobs(), repository.activeDraft()]);
@@ -70,7 +76,7 @@ export function useWorkspace() {
         if (alive) { setDrafts(previous => records.map(record => { const newer = previous.find(d => d.id === record.id); return newer && newer.revision > record.revision ? newer : record; })); setJobs(tasks); runner.current?.wake(); }
       }).catch(() => { if (alive) setError('Could not refresh local drafts.'); });
     });
-    return () => { alive = false; subscription.remove(); currentTeam?.close(); team.current = null; currentCloud?.close(); cloud.current = null; repo.current = null; runner.current = null; void (async () => { await currentRunner?.close(); await current?.close(); })(); };
+    return () => { alive = false; for (const controller of rayRequests.current.values()) controller.abort(); rayRequests.current.clear(); subscription.remove(); currentTeam?.close(); team.current = null; currentCloud?.close(); cloud.current = null; repo.current = null; runner.current = null; void (async () => { await currentRunner?.close(); await current?.close(); })(); };
   }, [generation]);
 
   const repository = () => { if (!repo.current) throw new Error('Local storage is not ready.'); return repo.current; };
@@ -120,6 +126,26 @@ export function useWorkspace() {
     if (!team.current) throw new Error('The team workspace is not ready.');
     await team.current.assignOwner(id, email, expectedVersion);
   }
-  return { assignLeadOwner, holdTeamUpdates: (held: boolean) => { editingTeam.current = held; if (!held) team.current?.wake(); }, cancelTeamOpen: () => team.current?.cancelOpen(), teamView, scope, selectScope, openTeam, shareTeam, resolveTeam: (id: string, choices: Record<string, 'local' | 'team'>) => team.current?.resolve(id, choices), drafts, activeDraftId, activateDraft, jobs, supportedKinds, preferences, loading, error, processingError, cloudEnabled, cloudStates, cloudCopies, restoreCloud, retryCloud: () => cloud.current?.wake(), retry: () => setGeneration(g => g + 1), create, update, attach, savePreferences, getMedia, retryJob, reviewJob, backup, restore };
+  async function askRay(id: string) {
+    if (rayRequests.current.has(id)) return;
+    const current = repository(); const controller = new AbortController();
+    rayRequests.current.set(id, controller); setRayStates(s => ({ ...s, [id]: { busy: true } }));
+    try {
+      const records = await current.list(); const draft = records.find(d => d.id === id);
+      if (!draft) throw new Error('The visitor is no longer available.');
+      const input = await prepareRayInput(draft, await current.jobs(), digest);
+      const advice = await requestRay(input, controller.signal);
+      if (repo.current !== current || controller.signal.aborted) return;
+      // Append to the captured visitor, even when the user has moved elsewhere.
+      // A new source can arrive meanwhile: advice retains its original fingerprint.
+      const updated = await current.update(id, { type: 'rayAdvice', advice });
+      if (repo.current !== current) return;
+      merge(updated); cloud.current?.wake(); team.current?.wake();
+      setRayStates(s => ({ ...s, [id]: { busy: false } }));
+    } catch (e) {
+      if (repo.current === current && !controller.signal.aborted) setRayStates(s => ({ ...s, [id]: { busy: false, error: e instanceof Error && e.name !== 'TimeoutError' ? e.message : 'Ray took too long. Your visitor stays saved; tap Ask Ray to retry.' } }));
+    } finally { if (rayRequests.current.get(id) === controller) rayRequests.current.delete(id); }
+  }
+  return { rayAvailable, rayStates, askRay, assignLeadOwner, holdTeamUpdates: (held: boolean) => { editingTeam.current = held; if (!held) team.current?.wake(); }, cancelTeamOpen: () => team.current?.cancelOpen(), teamView, scope, selectScope, openTeam, shareTeam, resolveTeam: (id: string, choices: Record<string, 'local' | 'team'>) => team.current?.resolve(id, choices), drafts, activeDraftId, activateDraft, jobs, supportedKinds, preferences, loading, error, processingError, cloudEnabled, cloudStates, cloudCopies, restoreCloud, retryCloud: () => cloud.current?.wake(), retry: () => setGeneration(g => g + 1), create, update, attach, savePreferences, getMedia, retryJob, reviewJob, backup, restore };
 }
 export type Workspace = ReturnType<typeof useWorkspace>;

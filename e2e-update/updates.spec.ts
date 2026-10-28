@@ -150,6 +150,31 @@ test('an update waits for discard confirmation, then refreshes without saving th
   } finally { await site.close(); }
 });
 
+test('an update waits for Ray and keeps its saved advice and signed-in visitor after refresh', async ({ page }) => {
+  const site = await releases();
+  let pending: import('@playwright/test').Route | undefined;
+  await page.route('**/api/ray/*', route => { pending = route; });
+  try {
+    await page.goto(site.origin); await ready(page); await visitor(page);
+    await page.getByRole('button', { name: 'Conversation', exact: true }).click();
+    await page.getByRole('button', { name: 'Add note', exact: true }).click();
+    await page.getByLabel('Note', { exact: true }).fill('Synthetic visitor needs a juice filler.');
+    await page.getByRole('button', { name: 'Save note', exact: true }).click();
+    await page.getByRole('button', { name: 'Ask Ray', exact: true }).click();
+    await expect.poll(() => !!pending).toBe(true);
+    site.next(); await checkUpdate(page);
+    await expect(page.getByText(/New version ready/)).toBeAttached();
+    await page.waitForTimeout(6500);
+    await expect(page.getByText('Version 8.0.1', { exact: true })).toBeAttached();
+    await expect(page.getByRole('button', { name: 'Asking…', exact: true })).toBeDisabled();
+    const input = pending!.request().postDataJSON();
+    await pending!.fulfill({ json: { state: 'complete', result: { ...input, id: pending!.request().url().split('/').pop(), createdAt: new Date().toISOString(), text: 'Synthetic saved Ray advice.', questions: [], machines: [], selectedSkus: [] } } });
+    await expect(page.getByText('Version 8.0.2', { exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Synthetic Update Visitor', exact: true })).toBeVisible();
+    await expect(page.getByText('Synthetic saved Ray advice.', { exact: true })).toBeVisible();
+  } finally { await site.close(); }
+});
+
 test('failed update installation keeps the current app; retry updates even with an older nonresponding tab open', async ({ page, context }) => {
   const site = await releases();
   try {

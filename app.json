@@ -2,7 +2,7 @@
   "expo": {
     "name": "Pete",
     "slug": "pete",
-    "version": "0.6.1",
+    "version": "0.7.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "scheme": "pete",
@@ -16,7 +16,7 @@
     "web": {
       "bundler": "metro",
       "name": "Pete",
-      "description": "Pete by BEVMAQ — capture contacts, business cards, voice notes, and requests."
+      "description": "Pete by BEVMAQ \u2014 capture contacts, business cards, voice notes, and requests."
     },
     "plugins": [
       [

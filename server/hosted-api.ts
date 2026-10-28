@@ -5,13 +5,14 @@ import { ApiError, hostedJobs } from './hosted-jobs';
 import type { Team } from '../src/team/types';
 import type { cloudBackups } from './cloud-backups';
 import type { TeamContext } from './lead-intake';
+import type { rayService } from './ray';
 
 export type Identity = { uid: string; email?: string; email_verified?: boolean };
 export function ownerOf(identity: Identity) {
   if (!identity.email_verified || !identity.email?.toLowerCase().endsWith('@bevmaq.com') || !identity.uid) throw new ApiError('Use a verified BEVMAQ email account.', 403);
   return createHash('sha256').update(identity.uid).digest('hex');
 }
-export function hostedHandler(jobs: ReturnType<typeof hostedJobs>, verify: (token: string) => Promise<Identity>, allowedOrigins: string[], engine: string, details?: ReturnType<typeof detailService>, cloud?: ReturnType<typeof cloudBackups>, teams: Team[] = []) {
+export function hostedHandler(jobs: ReturnType<typeof hostedJobs>, verify: (token: string) => Promise<Identity>, allowedOrigins: string[], engine: string, details?: ReturnType<typeof detailService>, cloud?: ReturnType<typeof cloudBackups>, teams: Team[] = [], ray?: ReturnType<typeof rayService>) {
   return async (request: Request): Promise<Response> => {
     const origin = request.headers.get('Origin') || '';
     const headers = { 'Cache-Control': 'no-store', 'Vary': 'Origin', ...(allowedOrigins.includes(origin) ? { 'Access-Control-Allow-Origin': origin } : {}) };
@@ -19,7 +20,7 @@ export function hostedHandler(jobs: ReturnType<typeof hostedJobs>, verify: (toke
     const url = new URL(request.url);
     let path = url.pathname.replace(/^\/api(?=\/)/, '');
     if (request.method === 'OPTIONS') return allowedOrigins.includes(origin) ? new Response(null, { status: 204, headers: { ...headers, 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type, Authorization' } }) : json({ error: 'Forbidden origin.' }, 403);
-    if (path === '/health' && request.method === 'GET') return json({ ready: true, authentication: 'required', engine, automaticFilling: !!details, cloudSaving: !!cloud, leadIntake: !!cloud, crmDelivery: false });
+    if (path === '/health' && request.method === 'GET') return json({ ready: true, authentication: 'required', engine, automaticFilling: !!details, cloudSaving: !!cloud, leadIntake: !!cloud, crmDelivery: false, ray: !!ray });
     if (origin && !allowedOrigins.includes(origin)) return json({ error: 'Forbidden origin.' }, 403);
     try {
       const token = request.headers.get('Authorization')?.match(/^Bearer (\S+)$/)?.[1];
@@ -27,6 +28,17 @@ export function hostedHandler(jobs: ReturnType<typeof hostedJobs>, verify: (toke
       let identity: Identity;
       try { identity = await verify(token); } catch { throw new ApiError('Your session expired. Sign in again.', 401); }
       const owner = ownerOf(identity);
+      const rayRoute = path.match(/^\/ray\/([a-f0-9]{64})$/);
+      if (rayRoute) {
+        if (request.method !== 'POST') throw new ApiError('Method not allowed.', 405);
+        if (!allowedOrigins.includes(origin)) throw new ApiError('A valid app origin is required.', 403);
+        if (!ray) throw new ApiError('Ray is not connected yet. Your visitor stays saved.', 503);
+        const raw = await request.text();
+        if (raw.length > 10000) throw new ApiError('Request too large.', 413);
+        let body; try { body = JSON.parse(raw); } catch { throw new ApiError('Invalid Ray request.'); }
+        const result = await ray.consult(owner, rayRoute[1], body);
+        return json(result, result.state === 'complete' ? 200 : 202);
+      }
       let cloudOwner = owner;
       let teamContext: TeamContext | undefined;
       if (path === '/teams' && request.method === 'GET') return json(teams.filter(t => t.members.includes(identity.email!.toLowerCase())));

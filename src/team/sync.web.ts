@@ -100,6 +100,7 @@ export function startTeamSync(repo: DraftRepository, changed: (view: TeamView) =
             }
             if (key === 'note' || key === 'event') return snapshot.draft[key] || '(empty)';
             if (section === 'job') return JSON.stringify(snapshot.jobs.find(j => j.id === key.slice(4))?.result ?? '(still processing)');
+            if (section === 'ray') return `Saved machines: ${snapshot.draft.ray?.find(a => a.id === key.slice(4))?.selectedSkus.join(', ') || 'None'}`;
             return JSON.stringify(section === 'entry' ? snapshot.draft.entries?.find(e => e.id === key.slice(6)) : snapshot.draft.attachments.find(a => a.id === key.slice(7))) || '(empty)';
           };
           report({ state: 'conflict', conflicts: result.conflicts, comparisons: result.conflicts.map(key => ({ key, local: describe(local, key), team: describe(latest.snapshot, key) })), message: 'You both changed the same details. Both versions are kept.' }); return;

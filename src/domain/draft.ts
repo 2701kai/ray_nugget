@@ -1,4 +1,5 @@
 import { requestFields } from './details';
+import { parseRayAdvice, type RayAdvice } from '../ray/types';
 
 export type CaptureKind = 'contact' | 'request' | 'card' | 'voice';
 export type Contact = { name: string; company: string; email: string; phone: string };
@@ -49,11 +50,14 @@ export type Draft = {
   appliedJobs: string[];
   suggestions: Array<{ field: keyof Contact; value: string; attachmentId: string; jobId: string }>;
   followup?: Followup;
+  ray?: RayAdvice[];
 };
 export type Patch = { contact?: Partial<Contact>; request?: Partial<Request>; event?: string; note?: string };
 export type DraftAction =
   | { type: 'edit'; patch: Patch }
   | { type: 'addNote'; id: string; text: string }
+  | { type: 'rayAdvice'; advice: RayAdvice }
+  | { type: 'raySelect'; consultationId: string; sku: string; selected: boolean }
   | { type: 'attach'; attachment: Attachment }
   | { type: 'enrich'; jobId: string; attachmentId: string; fields: Partial<Contact> }
   | { type: 'autofill'; jobId: string; attachmentId: string; fields: Partial<Contact>; request?: RequestReview }
@@ -133,6 +137,16 @@ export function reduceDraft(draft: Draft, action: DraftAction, now: string): Dra
     if (draft.entries?.some(entry => entry.id === action.id)) return draft;
     if (!action.text.trim() || action.text.length > 10000) throw new Error('Write a note of up to 10,000 characters.');
     next.entries = [...(draft.entries ?? []), { id: action.id, text: action.text.trim(), createdAt: now }];
+  } else if (action.type === 'rayAdvice') {
+    const advice = parseRayAdvice(action.advice);
+    if (advice.draftId !== draft.id) throw new Error('Ray advice belongs to another visitor.');
+    if (draft.ray?.some(a => a.id === advice.id)) return draft;
+    if ((draft.ray?.length ?? 0) >= 100) throw new Error('This visitor already has 100 saved Ray consultations. Earlier advice is kept.');
+    next.ray = [...(draft.ray ?? []), advice];
+  } else if (action.type === 'raySelect') {
+    const advice = draft.ray?.find(a => a.id === action.consultationId);
+    if (!advice?.machines.some(m => m.sku === action.sku)) throw new Error('This machine does not belong to the saved advice.');
+    next.ray = draft.ray!.map(a => a.id !== advice.id ? a : { ...a, selectedSkus: action.selected ? [...new Set([...a.selectedSkus, action.sku])] : a.selectedSkus.filter(s => s !== action.sku) });
   } else if (action.type === 'attach') {
     const attachment = action.attachment;
     if (attachment.bytes <= 0 || attachment.bytes > mediaLimit(attachment.kind)) throw new Error(`Choose a non-empty file smaller than ${mediaLimit(attachment.kind) / 1024 / 1024} MiB.`);

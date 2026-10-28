@@ -7,7 +7,7 @@ import { leadIntake, type TeamContext } from './lead-intake';
 import type { LeadReceipt } from '../src/leads/types';
 import type { crmOutbox } from './crm-outbox';
 
-export type CloudCopy = { id: string; draftId: string; fingerprint: string; revision: number; title: string; company: string; savedAt: string; createdBy?: string; updatedBy?: string; intakeVersion?: 1; lead?: LeadReceipt };
+export type CloudCopy = { id: string; draftId: string; fingerprint: string; revision: number; title: string; company: string; savedAt: string; createdBy?: string; updatedBy?: string; intakeVersion?: 1; lead?: LeadReceipt; rayIds?: string[] };
 type Media = { bytes: number; mimeType: string; verified?: boolean; uploadUrl?: string; startedAt: number };
 const sha = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex');
 export function cloudBackups(store: AtomicStore, storage: ReturnType<typeof hostedStorage>, list: (owner: string) => Promise<CloudCopy[]>, now = Date.now, outbox?: ReturnType<typeof crmOutbox>) {
@@ -58,11 +58,12 @@ export function cloudBackups(store: AtomicStore, storage: ReturnType<typeof host
     const fingerprint = sha(bytes);
     await storage.put(`owners/${owner}/manifests/${fingerprint}.json`, bytes);
     const draft = snapshot.draft;
-    const value: CloudCopy = { id, draftId: draft.id, fingerprint, revision: draft.revision, title: draft.contact.name || draft.contact.company || 'Untitled visitor', company: draft.contact.company, savedAt: new Date(now()).toISOString() };
+    const value: CloudCopy = { id, draftId: draft.id, fingerprint, revision: draft.revision, title: draft.contact.name || draft.contact.company || 'Untitled visitor', company: draft.contact.company, savedAt: new Date(now()).toISOString(), ...(draft.ray?.length ? { rayIds: draft.ray.map(a => a.id) } : {}) };
     const key = draftKey(owner, id);
     const pending = team ? await intake.prepare(owner, id, snapshot, fingerprint, team) : undefined;
     return store.atomic([key, ...(pending?.keys ?? [])], records => {
       const current = records[key] as CloudCopy | undefined;
+      if (current?.rayIds?.some(id => !value.rayIds?.includes(id))) throw new ApiError('Open the latest Pete version and sync this visitor to keep its saved Ray advice.', 409);
       if (current?.fingerprint === fingerprint && (!pending || current.intakeVersion === 1)) {
         // Explicitly enabled destinations can backfill the current accepted
         // source once. The cloud pointer and its user-visible receipt stay intact.
