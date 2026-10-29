@@ -64,6 +64,7 @@ test('update keeps an unsaved form, then reloads with the same signed-in account
   const site = await releases();
   try {
     await page.goto(site.origin); await ready(page); await visitor(page);
+    await page.getByRole('button', { name: 'Details & request', exact: true }).click();
     await page.getByRole('button', { name: 'Edit contact', exact: true }).click();
     await page.getByLabel('Name', { exact: true }).fill('Synthetic Edited Visitor');
     await page.getByLabel('Name', { exact: true }).blur();
@@ -90,6 +91,7 @@ test('idle tab updates independently while another tab edits; older assets survi
   const site = await releases();
   try {
     await page.goto(site.origin); await ready(page); await visitor(page);
+    await page.getByRole('button', { name: 'Details & request', exact: true }).click();
     await page.getByRole('button', { name: 'Edit contact', exact: true }).click();
     await page.getByLabel('Name', { exact: true }).fill('Synthetic Two Tab Visitor');
     const idle = await context.newPage(); await idle.goto(site.origin); await ready(idle);
@@ -113,7 +115,6 @@ test('a running voice capture is not interrupted by activation and its original 
   const site = await releases();
   try {
     await page.goto(site.origin); await ready(page); await visitor(page);
-    await page.getByRole('button', { name: 'Conversation', exact: true }).click();
     await page.getByRole('button', { name: 'Capture a voice note', exact: true }).click();
     await expect(page.getByText(/^00:0[1-3]$/)).toBeVisible();
     site.next(); await checkUpdate(page);
@@ -132,7 +133,6 @@ test('an update waits for discard confirmation, then refreshes without saving th
   const site = await releases();
   try {
     await page.goto(site.origin); await ready(page); await visitor(page);
-    await page.getByRole('button', { name: 'Conversation', exact: true }).click();
     await page.getByRole('button', { name: 'Capture a voice note', exact: true }).click();
     await expect(page.getByText(/^00:0[1-3]$/)).toBeVisible();
     await page.getByRole('button', { name: 'Discard recording', exact: true }).click();
@@ -156,7 +156,6 @@ test('an update waits for Ray and keeps its saved advice and signed-in visitor a
   await page.route('**/api/ray/*', route => { pending = route; });
   try {
     await page.goto(site.origin); await ready(page); await visitor(page);
-    await page.getByRole('button', { name: 'Conversation', exact: true }).click();
     await page.getByRole('button', { name: 'Add note', exact: true }).click();
     await page.getByLabel('Note', { exact: true }).fill('Synthetic visitor needs a juice filler.');
     await page.getByRole('button', { name: 'Save note', exact: true }).click();
@@ -190,5 +189,28 @@ test('failed update installation keeps the current app; retry updates even with 
     await expect(legacy.getByText('Older tab without update support')).toBeVisible();
     expect(await legacy.evaluate(async () => (await fetch('/assets/update-fixture-1.txt')).status)).toBe(200);
     await legacy.close();
+  } finally { await site.close(); }
+});
+
+test('an update waits for an inline transcript correction and keeps it after refresh', async ({ page }) => {
+  const site = await releases();
+  try {
+    await page.goto(site.origin); await ready(page); await visitor(page);
+    await page.getByRole('button', { name: 'Capture a voice note', exact: true }).click();
+    await expect(page.getByText(/^00:0[1-3]$/)).toBeVisible();
+    await page.getByRole('button', { name: 'Stop and save recording', exact: true }).click();
+    await page.getByRole('button', { name: 'Correct transcript', exact: true }).click();
+    await page.getByLabel('Correct transcript', { exact: true }).fill('Synthetic corrected fruit pieces, maximum 1 mm.');
+    await page.getByLabel('Correct transcript', { exact: true }).blur();
+    site.next(); await checkUpdate(page);
+    await expect(page.getByText(/New version ready/)).toBeAttached();
+    await page.waitForTimeout(6500);
+    await expect(page.getByText('Version 8.0.1', { exact: true })).toBeVisible();
+    await expect(page.getByLabel('Correct transcript', { exact: true })).toHaveValue('Synthetic corrected fruit pieces, maximum 1 mm.');
+    await page.getByRole('button', { name: 'Save correction', exact: true }).click();
+    await expect(page.getByText('Version 8.0.2', { exact: true })).toBeVisible();
+    await expect(page.getByText('Corrected transcript', { exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Read transcript', exact: true }).click();
+    await expect(page.getByTestId('source-reader-text')).toHaveText('Synthetic corrected fruit pieces, maximum 1 mm.');
   } finally { await site.close(); }
 });

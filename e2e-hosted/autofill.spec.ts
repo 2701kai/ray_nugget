@@ -47,10 +47,10 @@ test('card and speech fill one visitor without typing or a required review; relo
   await expect(page.getByRole('textbox')).toHaveCount(0);
   await page.screenshot({ path: test.info().outputPath('automatic-details-mobile.png'), animations: 'disabled' });
   await page.reload();
-  await page.getByRole('button', { name: 'View captured details', exact: true }).first().click();
+  await page.getByRole('button', { name: 'Details & request', exact: true }).click();
   await expect(page.getByRole('textbox')).toHaveCount(0);
   await expect(page.getByText('mara@example.test', { exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Edit details manually', exact: true }).click();
+  await page.getByRole('button', { name: 'Edit contact', exact: true }).click();
   await expect(page.getByLabel('Name', { exact: true })).toHaveValue('Mara Lind');
   expect(cards).toBe(1); expect(voices).toBe(1);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -75,7 +75,7 @@ test('interrupted extraction reuses saved transcript and fills the original visi
   await page.getByRole('button', { name: 'Open visitor Mara Lind', exact: true }).click();
   await expect(page.getByText('Details added automatically', { exact: true })).toBeVisible();
   expect(transcripts).toBe(1); expect(extractions).toBe(2);
-  await page.getByRole('button', { name: 'Details & request', exact: true }).click(); await expect(page.getByText('juice', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Details & request', exact: true }).click(); await expect(page.getByRole('dialog').getByText('juice', { exact: true })).toBeVisible();
 });
 
 test('spoken follow-ups fill missing details and a correction needs only a tap, without stale warnings', async ({ page }) => {
@@ -99,7 +99,7 @@ test('spoken follow-ups fill missing details and a correction needs only a tap, 
   await page.getByRole('button', { name: 'Details & request', exact: true }).click();
   await expect(page.getByText('glass bottle', { exact: true })).toBeVisible();
   await expect(page.getByText('2400 bottles/h', { exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Conversation', exact: true }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Close', exact: true }).click();
   await record(page);
   await page.getByRole('button', { name: 'Check suggested changes', exact: true }).click();
   await expect(page.getByRole('textbox')).toHaveCount(0);
@@ -122,15 +122,15 @@ test('spoken follow-ups fill missing details and a correction needs only a tap, 
   await page.reload();
   await page.getByRole('button', { name: 'Details & request', exact: true }).click();
   await expect(page.getByText('3000 bottles/h', { exact: true })).toBeVisible();
-  await expect(page.getByText('juice', { exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Conversation', exact: true }).click();
+  await expect(page.getByRole('dialog').getByText('juice', { exact: true })).toBeVisible();
+  await page.getByRole('dialog').getByRole('button', { name: 'Close', exact: true }).click();
   try { await record(page); } finally { releaseTeams(); }
   await page.getByRole('button', { name: 'Check suggested changes', exact: true }).click();
   await expect(page.getByText('Which company is this visitor from?', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Keep saved details', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Check suggested changes', exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: 'Details & request', exact: true }).click();
-  await expect(page.getByText('juice', { exact: true })).toBeVisible();
+  await expect(page.getByRole('dialog').getByText('juice', { exact: true })).toBeVisible();
   await expect(page.getByRole('textbox')).toHaveCount(0);
   expect(captures).toBe(4);
 });

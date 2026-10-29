@@ -99,9 +99,8 @@ test('completed advice needs no Stop; consented conversation and a general memo 
   await page.screenshot({ path: test.info().outputPath('advice-before-listings-390.png') });
 
   await page.getByRole('button', { name: 'Record conversation', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Start recording', exact: true })).toBeDisabled();
-  await page.getByRole('checkbox', { name: 'The other person agreed to this recording', exact: true }).click();
-  await page.getByRole('button', { name: 'Start recording', exact: true }).click();
+  await expect(page.getByRole('checkbox')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Start recording', exact: true })).toHaveCount(0);
   await expect(page.getByText('Recording · 30 min maximum', { exact: true })).toBeVisible();
   await expect(page.getByText(/^00:0[1-3]$/)).toBeVisible();
   expect(capture).toBe(0); expect(calls).toBe(1);

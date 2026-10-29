@@ -13,6 +13,7 @@
 !src/processing/jobs.ts
 !src/processing/review.ts
 !src/processing/request.ts
+!src/processing/source.ts
 !src/leads/
 !src/leads/types.ts
 

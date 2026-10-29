@@ -12,8 +12,9 @@ import { Button, ErrorNotice, Txt } from './primitives';
 import { colors } from './theme';
 import { useUpdateGuard } from '../pwa/updateGuard';
 
-export function RayAssistant({ draft, workspace, speak, recorderMode }: { draft: Draft; workspace: Workspace; speak: (questions: string[]) => void; recorderMode?: 'memo' | 'conversation' }) {
+export function RayAssistant({ draft, workspace, speak, recorderMode, reveal = 0 }: { draft: Draft; workspace: Workspace; speak: (questions: string[]) => void; recorderMode?: 'memo' | 'conversation'; reveal?: number }) {
   const [closed, setClosed] = useState(false);
+  useEffect(() => { setClosed(false); }, [reveal]);
   const [elapsed, setElapsed] = useState(0);
   const [fingerprint, setFingerprint] = useState('');
   const [briefOpen, setBriefOpen] = useState(false);
@@ -33,7 +34,6 @@ export function RayAssistant({ draft, workspace, speak, recorderMode }: { draft:
   const state = workspace.rayStates[draft.id];
   useEffect(() => {
     setElapsed(0);
-    if (state?.busy) setClosed(false);
     if (!state?.busy) return;
     const start = Date.now();
     const timer = setInterval(() => setElapsed(Math.floor((Date.now() - start) / 1000)), 1000);

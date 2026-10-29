@@ -1,6 +1,6 @@
 # Pete visitor workflow preview
 
-This is an unpublished 0.9.0 candidate, based on the 0.8.2 pilot. Pete captures a
+This isolated development preview accompanies the Pete 0.9.0 release. Pete captures a
 visitor and their need while a salesperson is talking with them. Ray advises on
 equipment using those captured facts. Recording and saving must work independently
 of Ray's availability.
@@ -56,6 +56,7 @@ only to loopback. Keep the established development origin on port 8081 unchanged
   frontend rollout and validate mixed-version team sync with the complete hosted
   suite. The preview does not certify production rollout.
 
-Next acceptance step: use this workflow during a realistic conversation, then
-validate recording and interruption recovery on a physical iPhone before choosing
-to publish. Preview code and public pilot remain separate.
+The user approved publishing this workflow on October 29, 2026. Physical iPhone
+recording and interruption acceptance remain open pilot validation; the WebKit
+check does not replace them. Preview visitors and public-pilot visitors stay
+separate. See MILESTONES.md for release scope and verification.

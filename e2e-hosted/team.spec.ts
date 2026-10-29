@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { createHash } from 'node:crypto';
 import { installIdentity } from './identity';
+import { decodeManifest, encodeManifest } from '../src/backup/archive';
 import { cloudBackups } from '../server/cloud-backups';
 import { hostedHandler } from '../server/hosted-api';
 import type { hostedJobs } from '../server/hosted-jobs';
@@ -42,7 +43,7 @@ test('two members share originals, resolve competing edits and keep a stable lea
     await route.fulfill({ status: result.status, headers: Object.fromEntries(result.headers), body: Buffer.from(await result.arrayBuffer()) });
   });
   await context.route('**/api/transcriptions/**', route => route.fulfill({ json: { state: 'complete', text: 'Synthetic cloud visitor needs juice.', engine: 'Synthetic speech' } }));
-  await context.route('**/api/extractions/**', route => route.fulfill({ json: { state: 'complete', engine: 'Synthetic details', result: { fields: { name: 'Cloud Visitor' }, request: { product: 'juice' }, questions: [] } } }));
+  await context.route('**/api/extractions/**', route => route.fulfill({ json: { state: 'complete', engine: 'Synthetic details', result: { fields: { name: 'Cloud Visitor' }, request: { product: 'juice', ...(route.request().postDataJSON().text.includes('1 mm') ? { particleSize: '1 mm' } : {}) }, questions: [] } } }));
 
   }
 
@@ -68,6 +69,31 @@ test('two members share originals, resolve competing edits and keep a stable lea
     await beta.getByRole('button',{name:'Play recording',exact:true}).click();
     await expect(beta.getByRole('button',{name:'Pause recording',exact:true})).toBeVisible();
     await beta.getByRole('button',{name:'Pause recording',exact:true}).click();
+    // A new client corrects a v1 visitor; the second member receives the v2
+    // result and original. A simulated older client cannot strip the correction.
+    await alpha.getByRole('button', { name: 'Correct transcript', exact: true }).click();
+    await alpha.getByLabel('Correct transcript', { exact: true }).fill('Synthetic cloud visitor needs juice. Fruit pieces, maximum 1 mm.');
+    await alpha.getByRole('button', { name: 'Save correction', exact: true }).click();
+    await expect(alpha.getByText('Saved to team', { exact: true })).toBeVisible({ timeout: 30000 });
+    await expect(beta.getByText('Corrected transcript', { exact: true })).toBeVisible({ timeout: 30000 });
+    await beta.getByRole('button', { name: 'Read transcript', exact: true }).click();
+    await expect(beta.getByTestId('source-reader-text')).toContainText('maximum 1 mm');
+    await beta.getByRole('button', { name: 'Original transcript', exact: true }).click();
+    await expect(beta.getByRole('dialog').getByText('Synthetic cloud visitor needs juice.', { exact: true })).toBeVisible();
+    await beta.getByRole('dialog').getByRole('button', { name: 'Close', exact: true }).click();
+    const pointer = (await (await handler(new Request('http://localhost:8085/api/teams/cibustec-2026/drafts', { headers: { Authorization: 'Bearer beta' } }))).json())[0];
+    expect(pointer.sourceEditIds).toHaveLength(1);
+    const source = [...files.values()].find(file => createHash('sha256').update(file.bytes).digest('hex') === pointer.fingerprint)!;
+    expect(JSON.parse(source.bytes.toString()).format).toBe('pete-backup/v2');
+    const stripped = decodeManifest(source.bytes);
+    for (const job of stripped.jobs) { delete job.result?.sourceEdits; delete job.result?.activeEditId; }
+    stripped.draft.revision++;
+    const oldWrite = await handler(new Request(`http://localhost:8085/api/teams/cibustec-2026/drafts/${pointer.id}`, {
+      method: 'POST', headers: { Origin: 'http://localhost:8085', Authorization: 'Bearer beta', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ manifest: new TextDecoder().decode(encodeManifest(stripped)), expected: pointer.fingerprint }),
+    }));
+    expect(oldWrite.status).toBe(409);
+    expect((await oldWrite.json()).error).toContain('transcript corrections');
     // Different offline notes must converge on the same visitor, keeping both sources.
     await context.setOffline(true);
     async function note(p: typeof page, text: string) {
@@ -88,7 +114,6 @@ test('two members share originals, resolve competing edits and keep a stable lea
       await p.getByRole('button',{name:'Edit contact',exact:true}).click();
       await p.getByLabel('Name',{exact:true}).fill(name);
       await p.getByRole('button',{name:'Save contact',exact:true}).click();
-      await p.getByRole('button',{name:'Conversation',exact:true}).click();
     }
     await alpha.getByRole('button',{name:'Details & request',exact:true}).click();
     await alpha.getByRole('button',{name:'Edit contact',exact:true}).click();
@@ -101,7 +126,6 @@ test('two members share originals, resolve competing edits and keep a stable lea
     await alpha.waitForTimeout(16000);
     await expect(alpha.getByLabel('Name',{exact:true})).toHaveValue('Alpha corrected name');
     await alpha.getByRole('button',{name:'Save contact',exact:true}).click();
-    await alpha.getByRole('button',{name:'Conversation',exact:true}).click();
     await expect(alpha.getByText('Review shared changes',{exact:true}).first()).toBeVisible({timeout:30000});
     await expect(alpha.getByText('On your device: Alpha corrected name',{exact:true})).toBeVisible();
     await expect(alpha.getByText('In the team: Beta corrected name',{exact:true})).toBeVisible();
@@ -115,9 +139,9 @@ test('two members share originals, resolve competing edits and keep a stable lea
     expect((await alpha.getByRole('button',{name:'New visitor',exact:true}).boundingBox())!.y).toBeGreaterThanOrEqual(0);
     await alpha.screenshot({path:test.info().outputPath('shared-mobile-conversation.png'),animations:'disabled'});
     await alpha.getByRole('button', { name: 'Details & request', exact: true }).click();
-    await expect(alpha.getByText('Received by Pete', { exact: true })).toBeVisible({ timeout: 30000 });
+    await expect(alpha.getByText('Team owner', { exact: true })).toBeVisible({ timeout: 30000 });
     await expect(alpha.getByText('Lead owner: alpha@bevmaq.com', { exact: true })).toBeVisible();
-    await expect(alpha.getByText('CRM transfer is not connected yet.', { exact: true })).toBeVisible();
+    await expect(alpha.getByText('CRM transfer is not connected yet.', { exact: true })).toHaveCount(0);
     const receipts = [...store.records].filter(([key]) => key.includes('/receipts/'));
     expect(receipts.length).toBeGreaterThan(0);
     expect(new Set(receipts.map(([, row]) => row.leadId)).size).toBe(1);
@@ -135,6 +159,7 @@ test('two members share originals, resolve competing edits and keep a stable lea
     await expect(alpha.getByText('Lead owner: beta@bevmaq.com', { exact: true })).toBeVisible({ timeout: 30000 });
     await alpha.getByRole('button', { name: 'Change lead owner', exact: true }).scrollIntoViewIfNeeded();
     await alpha.screenshot({ path: test.info().outputPath('lead-handoff-mobile.png'), animations: 'disabled' });
+    await alpha.getByRole('dialog').getByRole('button', {name:'Close',exact:true}).click();
     await alpha.getByRole('button',{name:'Visitors',exact:true}).click();
     await alpha.screenshot({path:test.info().outputPath('shared-mobile-event.png'),animations:'disabled'});
   } finally { await other.close(); }

@@ -11,7 +11,7 @@ COPY server ./server
 COPY src/domain ./src/domain
 COPY src/backup/archive.ts ./src/backup/archive.ts
 COPY src/processing/jobs.ts ./src/processing/jobs.ts
-COPY src/processing/review.ts src/processing/request.ts ./src/processing/
+COPY src/processing/review.ts src/processing/request.ts src/processing/source.ts ./src/processing/
 COPY src/leads/types.ts ./src/leads/types.ts
 COPY src/ray/types.ts ./src/ray/types.ts
 USER bun

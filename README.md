@@ -298,11 +298,11 @@ of automatically submitting a duplicate. That case needs an operation check.
 - Four capture entry points, explicit new visitors, editable contact/event details,
   searchable drafts, and buyer/seller requests.
 - Opening a draft goes straight to its conversation feed. The selected visitor
-  survives reloads. Voice note, card photo, and quick-note controls stay at the
-  bottom of the phone screen; Details & request holds editable structured fields.
-  Voice note starts recording on one tap. Record conversation opens consent and
-  the longer recording mode. Card photo offers the rear camera or an existing image.
-- Notes and original media form a chronological feed. Pending captures and delayed
+  survives reloads. Record conversation, voice note, card photo, quick note and Ask Ray stay together
+  above the conversation; Details holds editable structured fields. Both recording
+  modes start on one tap after microphone permission. Conversation recording assumes
+  the salesperson has already obtained agreement. Card photo offers the rear camera or an existing image.
+- Notes, original media and Ray advice form a newest-first feed. Pending captures and delayed
   processing results keep their source draft ID when another visitor is opened.
 - RFQ completeness checks for product, container, and throughput with units.
 - Original card photos and voice recordings saved with the selected draft;
@@ -511,7 +511,9 @@ The EU processing endpoint follows Google's
 
 ### Release numbers
 
-Pete 0.8.2 restores the 0.7.1 advisory policy while keeping automatic continuation and richer request fields. During the pilot, 0.x.0 marks a substantial
+Pete 0.9.0 unifies the visitor workflow and adds traceable transcript corrections,
+while retaining the restored 0.7.1 advisory policy and automatic continuation.
+See [milestones](MILESTONES.md) for scope, checks and remaining device validation. During the pilot, 0.x.0 marks a substantial
 feature increment and 0.x.y a fix. The 1.0.0 milestone means the capture, recovery,
 sharing, and assisted conversation contracts are stable for everyday use and
 validated on the team's actual devices. It does not require a CRM integration or

@@ -37,12 +37,13 @@ function WorkspaceScreen() {
   const { width, height } = useWindowDimensions();
   const desktop = width >= 1100;
   const [showLibrary, setShowLibrary] = useState(false);
+  const [rayOpenRequest, setRayOpenRequest] = useState(0);
   const feed = useRef<ComponentRef<typeof ScrollView>>(null);
   const [panel, setPanelState] = useState<Panel | null>(null);
   function setPanel(value: Panel | null) {
     if (value && workspace.sourceEditing) return;
     if (value && (panel?.kind === 'voice' || panel?.kind === 'conversation')) return;
-    workspace.holdTeamUpdates(!!value); setPanelState(value);
+    workspace.holdTeamUpdates(!!value && value.kind !== 'details'); setPanelState(value);
   }
   const voiceOpen = panel?.kind === 'voice' || panel?.kind === 'conversation';
   const [locked, setLocked] = useState(false);
@@ -140,15 +141,15 @@ function WorkspaceScreen() {
             <Button label="Voice note" accessibilityLabel="Capture a voice note" kind="secondary" disabled={captureDisabled} onPress={() => start('voice')} />
             <Button label="Card photo" accessibilityLabel="Capture business card" icon="camera" kind="quiet" disabled={captureDisabled} onPress={() => start('card')} />
             <Button label="Note" accessibilityLabel="Add note" icon="request" kind="quiet" disabled={captureDisabled} onPress={() => start('note')} />
-            {workspace.rayAvailable && draft!.request.intent !== 'sell' && <Button label={workspace.rayStates[draft!.id]?.busy ? 'Asking Ray…' : 'Ask Ray'} icon="spark" kind="secondary" disabled={captureDisabled || workspace.rayStates[draft!.id]?.busy || !draft!.attachments.length && !draft!.entries?.length && !draft!.request.product && !draft!.note} onPress={() => { feed.current?.scrollTo({ y: 0, animated: false }); void workspace.askRay(draft!.id); }} />}
+            {workspace.rayAvailable && draft!.request.intent !== 'sell' && <Button label={workspace.rayStates[draft!.id]?.busy ? 'Asking Ray…' : 'Ask Ray'} icon="spark" kind="secondary" disabled={captureDisabled || workspace.rayStates[draft!.id]?.busy || !draft!.attachments.length && !draft!.entries?.length && !draft!.request.product && !draft!.note} onPress={() => { feed.current?.scrollTo({ y: 0, animated: false }); setRayOpenRequest(n => n + 1); void workspace.askRay(draft!.id); }} />}
           </View>}
         </View>
         <ScrollView ref={feed} style={{ flex: 1 }} keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: desktop ? 24 : 16, paddingBottom: 28, width: '100%', maxWidth: 1040, alignSelf: 'center' }}>
           <View style={{ gap: 16 }}>
             <TeamConflict key={JSON.stringify(workspace.teamView.states[draft!.id]?.comparisons)} id={draft!.id} workspace={workspace} />
             <Conversation key={draft!.id} draft={draft!} workspace={workspace}
-              rayAt={workspace.rayStates[draft!.id]?.busy || workspace.rayStates[draft!.id]?.error ? '9999' : [...(draft!.ray ?? [])].sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0]?.createdAt}
-              ray={<RayAssistant key={`ray-${draft!.id}`} draft={draft!} workspace={workspace} recorderMode={voiceOpen ? panel.kind === 'conversation' ? 'conversation' : 'memo' : undefined} speak={questions => { void start('voice', false, questions); }} />} />
+              rayAt={workspace.rayStates[draft!.id]?.busy || workspace.rayStates[draft!.id]?.error || workspace.rayStates[draft!.id]?.canceled ? '9999' : [...(draft!.ray ?? [])].sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0]?.createdAt}
+              ray={<RayAssistant key={`ray-${draft!.id}`} draft={draft!} workspace={workspace} reveal={rayOpenRequest} recorderMode={voiceOpen ? panel.kind === 'conversation' ? 'conversation' : 'memo' : undefined} speak={questions => { void start('voice', false, questions); }} />} />
           </View>
         </ScrollView>
       </View>}

@@ -1,4 +1,4 @@
-# Pete backup format v1
+# Pete backup formats v1 and v2
 
 A `.pete` file is an uncompressed binary archive for one visitor. It is not a ZIP,
 an encrypted container, a signed document, or a cloud processing request.
@@ -47,7 +47,7 @@ required to edit the enriched records. Hosted pointers reject updates from older
 clients that strip the conversation marker. No originals or decisions are dropped
 to make an older client accept a newer record.
 
-The workflow preview reads v1 and v2. Visitors with corrected transcripts export
+Pete 0.9.0 reads v1 and v2. Visitors with corrected transcripts export
 `PETE_BACKUP_V2\n` / `pete-backup/v2`, so older apps reject the archive instead of
 silently using the misheard original. Existing v1 files need no migration; they
 open normally and become v2 only when a transcript is corrected. The envelope,
@@ -58,5 +58,5 @@ V2 also carries unfinished correction results with `processingComplete: false`;
 these restore paused and never trigger processing by import alone.
 
 Hosted rollout requires the new reader and server protection first: pointers
-retain every correction ID and reject clients that drop one. The workflow
-preview is local-only and has not been published to the hosted pilot.
+retain every correction ID and reject clients that drop one. Once v2 records exist, retain a v2-capable API and reader when recovering from a
+release problem. An older app must not silently downgrade corrected records.
