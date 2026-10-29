@@ -9,8 +9,10 @@ let html = await htmlFile.text();
 html = html.replace(/<html[^>]*>/, '<html lang="en-US">');
 html = html.replace(/<meta name="viewport"[^>]*>/, '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">');
 html = html.replace('</head>', `<link rel="manifest" href="/manifest.webmanifest">
-<link rel="icon" href="/icons/pete-192.png" type="image/png">
-<link rel="apple-touch-icon" href="/icons/pete-180.png">
+<link rel="icon" href="/icons/pete-glow.ico" sizes="16x16 32x32 48x48" type="image/x-icon">
+<link rel="icon" href="/icons/pete-glow-16.png" sizes="16x16" type="image/png">
+<link rel="icon" href="/icons/pete-glow-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="/icons/pete-glow-180.png" sizes="180x180">
 <meta name="theme-color" content="#365C49">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Pete">

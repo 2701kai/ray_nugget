@@ -1,6 +1,6 @@
 {
   "name": "pete",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "private": true,
   "main": "index.ts",
   "packageManager": "bun@1.4.4",
@@ -24,6 +24,7 @@
     "bench:storage": "bun scripts/benchmark-storage.ts",
     "test:auth": "bunx firebase-tools@15.34.1 emulators:exec --only auth --project demo-pete-sso --config integration/firebase.json 'bun test ./integration/google-auth.test.ts'",
     "prepare:ocr": "bun scripts/prepare-ocr.ts",
+    "prepare:icons": "bun scripts/generate-icons.ts",
     "server": "bun server/index.ts",
     "test:hosted": "playwright test --config playwright.hosted.config.ts",
     "test:crm": "bun scripts/test-crm-receiver.ts --postgres",

@@ -1,5 +1,21 @@
 # Pete milestones
 
+## 0.9.1 — Glowing favicon and install icons — October 29, 2026
+
+The approved green glowing Pete mark now identifies browser tabs and installed
+web apps. Dedicated 16/32/48-pixel favicon exports, an Apple touch icon, and
+192/512-pixel PWA icons retain the original artwork. A separate maskable icon
+keeps the glowing ring inside launcher cropping boundaries. New filenames avoid
+reusing earlier favicon URLs, and all icon assets join the offline shell.
+
+The change is limited to web icons and the visible release number. Validation:
+TypeScript, production export, PNG/ICO sizes and shell inclusion, visual checks at
+tab and launcher sizes, and all seven existing guarded-update scenarios passed.
+No backend, capture, Ray, customer-data, or authentication behavior changes.
+
+The approved master is in assets/pete-glow-master.png. Regenerate the committed
+icon exports with `bun run prepare:icons`. Release tag: `v0.9.1`.
+
 ## 0.9.0 — Visitor workflow and traceable corrections — October 29, 2026
 
 Pete keeps the salesperson focused on the visitor: capture their need, consult
